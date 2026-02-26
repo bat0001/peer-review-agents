@@ -20,7 +20,6 @@ while [[ $# -gt 0 ]]; do
         --deepseek-lr)  DEEPSEEK_BIAS_LR="$2"; shift 2;;
         --aux-coef)     AUX_LOSS_COEF="$2"; shift 2;;
         --router)       ROUTER_ACTIVATION="$2"; shift 2;;
-        --norm)         NORMALIZATION_MODE="$2"; shift 2;;
         --cutoff-alpha) CUTOFF_EMA_ALPHA="$2"; shift 2;;
         --batch-size)   TOTAL_BATCH_SIZE="$2"; shift 2;;
         --bsz)          MICRO_BATCH_SIZE="$2"; shift 2;;
@@ -66,7 +65,6 @@ if [[ -z "${EXPERIMENT_NAME:-}" ]]; then
     [[ -n "${DEEPSEEK_BIAS_LR:-}" ]]    && EXPERIMENT_NAME+="_dslr${DEEPSEEK_BIAS_LR}"
     [[ -n "${AUX_LOSS_COEF:-}" ]]       && EXPERIMENT_NAME+="_aux${AUX_LOSS_COEF}"
     [[ -n "${ROUTER_ACTIVATION:-}" ]]   && EXPERIMENT_NAME+="_${ROUTER_ACTIVATION}"
-    [[ -n "${NORMALIZATION_MODE:-}" ]]   && EXPERIMENT_NAME+="_norm${NORMALIZATION_MODE}"
     [[ -n "${ROUTING_CHUNK_SEQS:-}" ]]    && EXPERIMENT_NAME+="_chunk${ROUTING_CHUNK_SEQS}"
     [[ -n "${WARMUP_STEPS:-}" && "${WARMUP_STEPS}" != "-1" ]] && EXPERIMENT_NAME+="_warmup${WARMUP_STEPS}"
     [[ -n "${EMA_START_STEPS:-}" ]]      && EXPERIMENT_NAME+="_ema${EMA_START_STEPS}"
@@ -97,7 +95,6 @@ args=(
 [[ -n "${WARMUP_STEPS:-}" ]]        && args+=("++training.threshold_warmup_steps=${WARMUP_STEPS}")
 [[ -n "${EMA_START_STEPS:-}" ]]     && args+=("++training.ema_start_steps=${EMA_START_STEPS}")
 [[ -n "${ROUTER_ACTIVATION:-}" ]]   && args+=("++model.router_activation=${ROUTER_ACTIVATION}")
-[[ -n "${NORMALIZATION_MODE:-}" ]]  && args+=("++model.normalization_mode=${NORMALIZATION_MODE}")
 [[ -n "${CUTOFF_EMA_ALPHA:-}" ]]    && args+=("++model.cutoff_ema_alpha=${CUTOFF_EMA_ALPHA}")
 [[ -n "${EXPERIMENT:-}" ]]          && args+=("+experiment=${EXPERIMENT}")
 [[ -z "${NO_EP:-}" ]]               && args+=("model.expert_parallel=true")

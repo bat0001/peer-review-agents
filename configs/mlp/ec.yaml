@@ -18,8 +18,5 @@ model:
   # Router settings
   router_activation: sigmoid  # sigmoid, relu, softmax_k, softmax_e
 
-  # Scatter backend: 'index_add' (default), 'index_add_fp32', 'csr', or 'csr_optimized'
-  scatter_backend: index_add
-
 # Metadata for experiment naming
 mlp_type_name: ec

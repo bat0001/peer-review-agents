@@ -4,7 +4,7 @@ GEC is a sparse MoE architecture where experts select top-k tokens. Each expert 
 exactly k = ⌊BT/E⌋ tokens, achieving perfect load balancing.
 
 This implementation is a thin wrapper around ExpertEngine, which handles routing
-and expert computation. The wrapper handles scatter via composition (scatter_backends).
+and expert computation. The wrapper uses a fixed FP32 index_add scatter.
 """
 
 from typing import Dict, Tuple
@@ -15,7 +15,7 @@ from torch import Tensor
 from .model_base import BaseMLP
 from .engines import ExpertEngine
 from .engines.parallel_experts_manual import ParallelExperts
-from src.ops.scatter_backends import get_scatter
+from src.ops.index_add_fp32 import IndexAddScatterFP32
 
 
 class GECMLP(BaseMLP):
@@ -26,12 +26,16 @@ class GECMLP(BaseMLP):
     - threshold (default eval): Causal routing using learned cutoff EMAs
 
     The model composes ExpertEngine (for routing + expert computation) with
-    scatter backends (for aggregating expert outputs to tokens).
+    FP32 index_add scatter (for aggregating expert outputs to tokens).
     """
 
     def __init__(self, config):
         super().__init__(config)
 
+        # We intentionally keep two engine implementations:
+        # - ExpertEngine: default routed-expert path
+        # - ParallelExperts: EP-specific path when expert_parallel=true
+        # This keeps EP communication logic isolated from the standard engine.
         # Create engine with all experts as routed (no shared expert)
         n_routed_experts = config.n_experts
         if config.expert_parallel:
@@ -39,9 +43,8 @@ class GECMLP(BaseMLP):
         else:
             self.engine = ExpertEngine(config, n_routed_experts=n_routed_experts)
 
-        # Scatter backend (config.scatter_backend: 'index_add', 'index_add_fp32', 'csr', or 'csr_optimized')
-        # max_fanout = n_experts (all experts are routed)
-        self.scatter = get_scatter(config.scatter_backend, config.n_experts)
+        # Fixed scatter path: FP32 index_add accumulation.
+        self.scatter = IndexAddScatterFP32()
 
         # Routing mode control (training only; eval always uses threshold)
         self.routing_mode = getattr(config, 'routing_mode', 'topk')
@@ -64,23 +67,12 @@ class GECMLP(BaseMLP):
         # Engine returns 6-tuple: h_flat, indices_flat, weights_flat, fanout, shared_weights, metrics
         # We ignore shared_weights since GEC has no shared expert
         if not self.training or self.routing_mode == 'threshold':
-            h_flat, indices_flat, weights_flat, fanout, _shared_weights, metrics = self.engine.forward_threshold(x, layer_idx, is_shared=False)
+            h_flat, indices_flat, weights_flat, _fanout, _shared_weights, metrics = self.engine.forward_threshold(x, layer_idx, is_shared=False)
         else:
-            h_flat, indices_flat, weights_flat, fanout, _shared_weights, metrics = self.engine.forward_topk(x, layer_idx, is_shared=False)
+            h_flat, indices_flat, weights_flat, _fanout, _shared_weights, metrics = self.engine.forward_topk(x, layer_idx, is_shared=False)
 
-        # Normalize weights (fanout by default, optional none)
-        normalization_mode = getattr(self.config, 'normalization_mode', 'fanout')
-        if normalization_mode == "fanout":
-            # fanout[indices] is always >= 1 since selected tokens have at least 1 expert
-            fanout_flat = fanout[indices_flat]  # (total_active,)
-            normalized_weights = weights_flat / fanout_flat  # (total_active,)
-        elif normalization_mode == "none":
-            normalized_weights = weights_flat
-        else:
-            raise ValueError(f"Unknown normalization_mode: {normalization_mode}")
-
-        # Scatter expert outputs to tokens (with normalized weights)
-        output = self.scatter(h_flat, indices_flat, n_tokens, normalized_weights)
+        # Scatter expert outputs to tokens using raw routed weights.
+        output = self.scatter(h_flat, indices_flat, n_tokens, weights_flat)
 
         # Reshape output from (B*T, C) to (B, T, C) and cast back to input dtype
         output = output.view(B, T, C).to(x.dtype)

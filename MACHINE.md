@@ -39,7 +39,7 @@ On this A5000 machine, always store data in `/data2/` and never in `$HOME/`, as 
 ## Running Training
 
 ```bash
-cd /data2/hanchi/nano_gec_integration
+cd /data2/hanchi/Global-Expert-Choice
 /data2/hanchi/miniconda3/envs/nanochat/bin/python train.py
 ```
 

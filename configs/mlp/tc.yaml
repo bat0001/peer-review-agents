@@ -12,7 +12,6 @@ model:
 
   # Router settings
   router_activation: sigmoid  # sigmoid, relu, softmax_e, softmax_e_shared_out
-  normalization_mode: none    # ignored (token-choice uses raw gates)
 
   # Load balancing
   load_balance_method: none   # none, aux, aux_error, deepseek

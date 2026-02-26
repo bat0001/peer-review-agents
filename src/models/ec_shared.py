@@ -115,20 +115,10 @@ class ECSharedMLP(GECSharedMLP):
         # Compute fanout (routed experts only)
         fanout = compute_fanout(n_tokens, permutation_indices, x.device, torch.float32)
 
-        normalization_mode = getattr(self.config, 'normalization_mode', 'fanout')
-        if normalization_mode == "fanout":
-            # Standard fanout normalization: divide by (fanout + 1)
-            one = torch.tensor(1.0, device=fanout.device, dtype=fanout.dtype)
-            normalizer = fanout + one
-            normalized_weights_flat = weights_flat.reshape(-1) / normalizer[permutation_indices]
-            shared_weights = one / normalizer  # (B*T,)
-        elif normalization_mode == "none":
-            # No normalization: use weights as-is
-            normalized_weights_flat = weights_flat.reshape(-1)
-            if shared_weights is None:
-                shared_weights = torch.ones_like(fanout)
-        else:
-            raise ValueError(f"Unknown normalization_mode: {normalization_mode}")
+        # Fixed weighting rule: use raw routed weights.
+        normalized_weights_flat = weights_flat.reshape(-1)
+        if shared_weights is None:
+            shared_weights = torch.ones_like(fanout)
 
         # Flatten outputs and scatter with fused weights
         h_flat = h.reshape(-1, C)

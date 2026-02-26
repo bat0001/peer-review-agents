@@ -47,7 +47,7 @@ def compute_routing_metrics(
         n_tokens: Optional total token count for capacity metrics (for EP where above_counts is global)
 
     Returns:
-        Dict of metrics (see memory/plans/router_metrics.md for complete list)
+        Dict of routing metrics used for training/eval logging.
 
     Temporal metrics require buffers in model_instance:
         - cutoff_history_L{i}: (temporal_window, n_experts)

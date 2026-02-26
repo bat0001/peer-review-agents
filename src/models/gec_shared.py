@@ -5,7 +5,7 @@ The shared expert provides a baseline capacity while routed experts add speciali
 
 Formula for k: k = n_tokens × (G-1) / (G×E) (leaves room for shared expert)
 
-The scatter backend applies ALL weights in one fused pass:
+The scatter path applies ALL weights in one fused pass:
 - Routed: output[idx] += h_flat[slot] * weights_flat[slot]
 - Shared: output[idx] += shared_flat[idx] * shared_weights[idx]
 """
@@ -20,7 +20,7 @@ from torch import Tensor
 from .model_base import BaseMLP
 from .engines import ExpertEngine
 from .engines.parallel_experts_manual import ParallelExperts
-from src.ops.scatter_backends import get_scatter
+from src.ops.index_add_fp32 import IndexAddScatterFP32
 
 
 class GECSharedMLP(BaseMLP):
@@ -30,20 +30,23 @@ class GECSharedMLP(BaseMLP):
     - n_experts = (G × E) total, with (G × E - 1) routed + 1 shared
     - Shared expert processes all tokens (implicit weight=1.0)
     - Routed experts selected via topk or threshold routing
-    - Outputs normalized consistently (normalizer = fanout + 1 for shared expert)
+    - Uses raw routed weights and engine-provided shared weights
 
     Routing modes:
     - topk (default training): Perfect load balance for routed experts
     - threshold (default eval): Causal routing with optional capacity constraints
 
     The wrapper composes ExpertEngine (for routing + expert computation) with
-    scatter backends (for aggregating expert outputs). Uses scatter's add_into
-    to fuse routed output aggregation with shared expert output.
+    FP32 index_add scatter (for aggregating expert outputs).
     """
 
     def __init__(self, config):
         super().__init__(config)
 
+        # We intentionally keep two engine implementations:
+        # - ExpertEngine: default routed-expert path
+        # - ParallelExperts: EP-specific path when expert_parallel=true
+        # This keeps EP communication logic isolated from the standard engine.
         # Routed expert engine (reserves one expert slot for shared)
         n_routed_experts = config.n_experts - 1
         if config.expert_parallel:
@@ -51,10 +54,8 @@ class GECSharedMLP(BaseMLP):
         else:
             self.engine = ExpertEngine(config, n_routed_experts=n_routed_experts)
 
-        # Scatter backend (config.scatter_backend: 'index_add', 'index_add_fp32', 'csr', or 'csr_optimized')
-        # max_fanout = n_routed_experts (shared expert handled separately)
-        max_fanout = config.n_experts - 1
-        self.scatter = get_scatter(config.scatter_backend, max_fanout)
+        # Fixed scatter path: FP32 index_add accumulation.
+        self.scatter = IndexAddScatterFP32()
 
         # Shared expert (always active, simple dense MLP)
         self.shared_weight1 = nn.Parameter(torch.empty(config.expert_dim, config.n_embd))
@@ -89,8 +90,7 @@ class GECSharedMLP(BaseMLP):
         Flow:
         1. Engine computes routed expert outputs (h_flat, weights_flat, indices, shared_weights, metrics)
         2. Compute shared expert output (unweighted)
-        3. Apply normalization based on config (fanout or none)
-        4. Scatter applies ALL weights in one fused pass (routed + shared)
+        3. Scatter applies ALL weights in one fused pass (routed + shared)
 
         Args:
             x: Input tensor (B, T, C)
@@ -111,38 +111,21 @@ class GECSharedMLP(BaseMLP):
         else:
             h_flat, indices_flat, weights_flat, fanout, engine_shared_weights, metrics = self.engine.forward_topk(x, layer_idx, is_shared=True)
 
-        # === Apply normalization based on config ===
-        normalization_mode = getattr(self.config, 'normalization_mode', 'fanout')
-
-        if normalization_mode == "fanout":
-            # Standard fanout normalization: divide by (fanout + 1)
-            one = torch.tensor(1.0, device=fanout.device, dtype=fanout.dtype)
-            normalizer = fanout + one  # (B*T,)
-            normalizer_flat = normalizer[indices_flat]  # (total_active,)
-            normalized_weights = weights_flat / normalizer_flat  # (total_active,)
-            shared_weights = one / normalizer  # (B*T,)
-
-        elif normalization_mode == "none":
-            # No normalization: use weights as-is
-            # For softmax_e variants, weights are already properly normalized
-            normalized_weights = weights_flat
-            if engine_shared_weights is None:
-                # Keep shared expert unweighted for non-softmax activations.
-                shared_weights = torch.ones_like(fanout)
-            else:
-                shared_weights = engine_shared_weights  # From engine (softmax or 1/G)
-
+        # Shared weights come from router activation when available.
+        # For non-softmax activations, shared expert remains unweighted.
+        if engine_shared_weights is None:
+            shared_weights = torch.ones_like(fanout)
         else:
-            raise ValueError(f"Unknown normalization_mode: {normalization_mode}")
+            shared_weights = engine_shared_weights
 
         # === Compute shared expert output (UNWEIGHTED) ===
         shared_flat = self._shared_expert_forward(x_flat)  # (B*T, C)
 
         # === Scatter applies ALL weights in one fused pass ===
-        # Routed: output[idx] += h_flat[slot] * normalized_weights[slot]
+        # Routed: output[idx] += h_flat[slot] * weights_flat[slot]
         # Shared: output[idx] += shared_flat[idx] * shared_weights[idx]
         output = self.scatter(
-            h_flat, indices_flat, n_tokens, normalized_weights,
+            h_flat, indices_flat, n_tokens, weights_flat,
             shared_flat=shared_flat, shared_weights=shared_weights
         )
 
@@ -172,9 +155,6 @@ class GECSharedMLP(BaseMLP):
             torch.ones(1, device=metrics['expert_usage'].device),
             metrics['expert_usage']
         ])
-
-        # token_fanout already accounts for shared expert (baseline=1.0 in normalizer)
-        # No need to modify it here
 
         return metrics
 

@@ -1,5 +1,10 @@
 """
-Nanochat-style parquet dataset utilities.
+Parquet dataset download and iteration utilities.
+
+Provenance:
+- Adapted from nanochat dataset utilities for FineWeb parquet shards:
+  https://github.com/karpathy/nanochat
+- Modified for local config/environment conventions used by this repo.
 """
 
 from __future__ import annotations

@@ -1,4 +1,10 @@
-"""Nanochat-style parquet data loader."""
+"""Streaming parquet text loader with on-the-fly tokenization.
+
+Provenance:
+- Loading/tokenization flow is adapted from nanochat dataloader patterns:
+  https://github.com/karpathy/nanochat
+- Modified for this repo's distributed helpers and config surface.
+"""
 
 from __future__ import annotations
 

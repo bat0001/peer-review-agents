@@ -57,7 +57,6 @@ class ModelConfig:
     # Routing configuration
     routing_chunk_seqs: Optional[int] = None  # Number of sequences per routing chunk (None=global)
     router_activation: str = "sigmoid"  # Router activation: sigmoid, relu, softmax_k, softmax_e, softmax_e_shared_out
-    normalization_mode: str = "fanout"  # fanout (divide by fanout+1), none (use weights as-is, for softmax_e)
     routing_mode: str = "topk"  # Routing mode (training only): 'topk' or 'threshold'
     threshold_warmup_steps: int = -1  # Passed from training config; -1 = disabled, >=0 = switch at step N
     expert_capacity_factor: float = -1.0  # Capacity bounds: [k×(1-cap), k×(1+cap)] for threshold routing (-1=disabled)
@@ -68,9 +67,6 @@ class ModelConfig:
     aux_loss_coef: float = 0.0
     deepseek_bias_lr: float = 0.0
     z_loss_coef: float = 0.0
-
-    # Scatter backend configuration
-    scatter_backend: str = "index_add"  # 'index_add', 'index_add_fp32', 'csr', or 'csr_optimized'
 
     # Expert parallelism (EP): shard experts across GPUs instead of replicating
     expert_parallel: bool = False
@@ -123,7 +119,7 @@ class ModelConfig:
             G = self.granularity
             assert G > 0 and (G & (G - 1)) == 0, \
                 f"granularity must be a power of 2, got {G}"
-            if self.model_type in ["gec_shared", "gec_shared_capacity", "gec_shared_csr", "ec_shared", "tc_shared"]:
+            if self.model_type in ["gec_shared", "gec_shared_capacity", "ec_shared", "tc_shared"]:
                 assert G >= 2, \
                     f"{self.model_type} requires granularity >= 2 (need routed experts), got {G}"
 
@@ -148,7 +144,7 @@ class ModelConfig:
             # New notation: derive from G and E
             # GEC/EC: n_experts = G × E
             # GEC_shared/EC_shared: n_experts = (G × E) + 1 (routed + 1 shared)
-            if self.model_type in ["gec_shared", "gec_shared_capacity", "gec_shared_csr", "ec_shared", "tc_shared"]:
+            if self.model_type in ["gec_shared", "gec_shared_capacity", "ec_shared", "tc_shared"]:
                 self.n_experts = int(self.granularity * self.expansion) + 1
             else:
                 self.n_experts = int(self.granularity * self.expansion)
@@ -340,7 +336,7 @@ class BaseGPT(nn.Module):
         print(f"Model initialized with {n_params:,} parameters")
 
         # Report MoE configuration if applicable
-        if config.model_type in ["gec", "gec_shared", "gec_shared_capacity", "gec_shared_csr", "ec", "ec_shared", "scattermoe_tc", "tc_shared"]:
+        if config.model_type in ["gec", "gec_shared", "gec_shared_capacity", "ec", "ec_shared", "scattermoe_tc", "tc_shared"]:
             print(f"  MoE Config: G={config.granularity}, E={config.expansion}")
             print(f"  → n_experts={config.n_experts}, expert_dim={config.expert_dim}")
             if config.model_type == "ec":
@@ -352,7 +348,7 @@ class BaseGPT(nn.Module):
                 n_routed = config.n_experts - 1
                 print(f"  → {n_routed} routed experts, top_k = {config.granularity - 1} (token-choice)")
                 print(f"  → 1 shared expert (always active, dim={config.shared_expert_dim})")
-            elif config.model_type in ["gec_shared", "gec_shared_capacity", "gec_shared_csr", "ec_shared"]:
+            elif config.model_type in ["gec_shared", "gec_shared_capacity", "ec_shared"]:
                 n_routed = config.n_experts - 1
                 active_routed = config.granularity - 1
                 print(f"  → {n_routed} routed experts, ~{active_routed} active per token")

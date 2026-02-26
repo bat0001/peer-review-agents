@@ -1,4 +1,10 @@
-"""ScatterMoE token-choice MLPs backed by ScatterMoE Triton kernels."""
+"""ScatterMoE token-choice MLP variants (`scattermoe_tc`, `tc_shared`).
+
+Provenance:
+- Core token-choice expert kernels/operators are used from ScatterMoE:
+  https://github.com/shawntan/scattermoe
+- This module adapts those ops to this repository's model/config/metrics API.
+"""
 
 from typing import Dict, Tuple
 
@@ -8,6 +14,7 @@ import torch.nn.functional as F
 
 from .model_base import BaseMLP, ModelConfig
 from .router_utils import apply_router_activation
+# Imported from vendored ScatterMoE source tree in this repo (`scattermoe/`).
 from scattermoe.scattermoe.parallel_experts import parallel_linear, flatten_sort_count
 
 

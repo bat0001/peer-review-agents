@@ -23,8 +23,5 @@ model:
   router_activation: sigmoid  # sigmoid, relu, softmax_k, softmax_e
   # routing_mode: topk        # optional: topk or threshold
 
-  # Scatter backend: 'index_add' (default), 'index_add_fp32', 'csr', or 'csr_optimized'
-  scatter_backend: index_add
-
 # Metadata for experiment naming
 mlp_type_name: ec_shared

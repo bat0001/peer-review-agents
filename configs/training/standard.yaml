@@ -7,6 +7,3 @@ training_tokens: 10  # 10B tokens
 eval_interval: 250
 eval_tokens: 10485760
 save_interval: 5000
-
-enable_visualizations: true
-plot_interval: null

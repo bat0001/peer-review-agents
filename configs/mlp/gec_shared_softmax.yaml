@@ -12,10 +12,6 @@ model:
 
   # Router settings - softmax_e with shared in softmax
   router_activation: softmax_e
-  normalization_mode: none  # Required for softmax_e
-
-  # Scatter backend
-  scatter_backend: index_add
 
 # Metadata for experiment naming
 mlp_type_name: gec_shared_softmax

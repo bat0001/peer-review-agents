@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Main training script with direct training loop (nanochat style) and Hydra config."""
+"""Main training script with Hydra and a nanochat-style direct training loop.
+
+Provenance:
+- Adapted from nanochat training recipes:
+  https://github.com/karpathy/nanochat
+- Then extended for GEC/EC routing, expert-parallel flows, and CORE eval integration.
+"""
 
 import os
 import sys

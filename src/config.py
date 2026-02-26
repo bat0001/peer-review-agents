@@ -28,10 +28,6 @@ class TrainingConfig:
     eval_interval: int = 250
     eval_tokens: int = 20 * 524288
 
-    # Visualization
-    enable_visualizations: bool = True  # Enable eval visualizations
-    plot_interval: Optional[int] = None  # Plot generation interval (defaults to save_interval)
-
     # Threshold training
     ema_start_steps: int = 0  # >=0: start applying cutoff EMA updates at step N
     threshold_warmup_steps: int = -1  # -1 = disabled, >=0 = switch to threshold at step N
@@ -215,6 +211,10 @@ class Config:
         for key in hydra_metadata_keys:
             data.pop(key, None)
 
+        # Backward-compat cleanup: legacy visualization knobs are removed.
+        training_cfg.pop("enable_visualizations", None)
+        training_cfg.pop("plot_interval", None)
+
         # Create sub-configs
         training = TrainingConfig(**training_cfg)
         data_config = DataConfig(**data_cfg)
@@ -273,20 +273,6 @@ class Config:
         if "load_balance_method" in self.model:
             assert self.model.get("load_balance_method") in ["none", "aux", "aux_error", "deepseek"], \
                 f"Invalid load_balance_method: {self.model.get('load_balance_method')}"
-
-        # Normalization mode validation (if specified)
-        if "normalization_mode" in self.model:
-            assert self.model.get("normalization_mode") in ["fanout", "none"], \
-                f"Invalid normalization_mode: {self.model.get('normalization_mode')}"
-
-            # Enforce softmax_e requires normalization_mode=none
-            router_act = self.model.get("router_activation", "sigmoid")
-            norm_mode = self.model.get("normalization_mode", "fanout")
-            if router_act.startswith("softmax_e") and norm_mode != "none":
-                raise ValueError(
-                    f"router_activation='{router_act}' requires normalization_mode='none', "
-                    f"got '{norm_mode}'"
-                )
 
         # Training validation
         assert self.training.total_batch_size > 0

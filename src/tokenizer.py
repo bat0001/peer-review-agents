@@ -1,4 +1,10 @@
-"""RustBPE tokenizer wrapper (nanochat-style)."""
+"""RustBPE tokenizer wrapper used by training and evaluation.
+
+Provenance:
+- Design follows nanochat tokenizer workflow (rustbpe training + tiktoken encoding):
+  https://github.com/karpathy/nanochat
+- Implemented locally and simplified for this repository's RustBPE-only path.
+"""
 
 from __future__ import annotations
 

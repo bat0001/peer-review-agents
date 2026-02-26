@@ -1,6 +1,10 @@
 """
-Distributed training utilities adapted from nanochat.
-Handles multi-GPU coordination without DDP wrapper (ZeRO-2 style).
+Distributed training utilities for multi-GPU runs without a DDP-wrapped model.
+
+Provenance:
+- Adapted from nanochat distributed training patterns:
+  https://github.com/karpathy/nanochat
+- Modified for GEC expert-parallel initialization and cutoff-state synchronization.
 """
 
 import os
