@@ -1,0 +1,10 @@
+# @package _global_
+# nanochat-style depth-8 config
+
+model:
+  n_embd: 512
+  n_layer: 8
+  n_head: 4
+  # head_dim = 128 (512/4)
+
+model_size_name: d8

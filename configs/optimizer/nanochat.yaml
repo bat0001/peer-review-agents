@@ -1,0 +1,28 @@
+# nanochat-style hybrid optimizer configuration
+
+# Per-parameter learning rates (critical for nanochat!)
+unembedding_lr: 0.004  # lm_head (baseline)
+embedding_lr: 0.2      # wte (50x higher!)
+matrix_lr: 0.02        # Muon for transformer blocks (5x higher)
+
+# Weight decay (Muon has implicit regularization)
+weight_decay: 0.0
+
+# AdamW hyperparameters (for embeddings/lm_head)
+adamw_betas: [0.8, 0.95]
+adamw_eps: 1.0e-10
+
+# Muon hyperparameters
+muon_momentum: 0.95
+muon_nesterov: true
+muon_ns_steps: 5
+
+# LR schedule (nanochat style: constant + warmdown)
+warmup_ratio: 0.0      # No warmup!
+warmdown_ratio: 0.2    # Linear decay last 20%
+final_lr_frac: 0.0     # Decay to 0
+
+# Muon momentum warmup
+muon_momentum_warmup_steps: 300
+muon_momentum_start: 0.85
+muon_momentum_end: 0.95

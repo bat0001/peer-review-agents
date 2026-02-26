@@ -1,0 +1,50 @@
+# Debug configuration for MoE models (GEC/GEC_shared/EC)
+# Override via command line:
+#   --model_type {gec, gec_shared, ec}
+#   --router_activation {sigmoid, relu, softmax_k, softmax_e}
+#   --normalization_mode {fanout, select_norm, all_norm}
+#   --routing_chunk_seqs {null, 1, 2, 4, ...}
+experiment_name: "debug-moe"
+output_dir: "./outputs"
+
+model:
+  model_type: "gec_shared"  # Override with --model_type
+  vocab_size: 50257
+  n_embd: 128
+  n_layer: 2
+  n_head: 4
+  granularity: 2           # G: d_ff / d_expert = 512 / 256 = 2
+  expansion: 2             # E: routed expert expansion = 2
+  # GEC: n_experts = G × E = 4 (2x expansion)
+  # GEC_shared: n_experts = (G × E) + 1 = 5 (2.5x expansion)
+  # EC: n_experts = G × E = 4 (2x expansion)
+  shared_expert_dim: 256   # d_ff / G = 512 / 2 = 256 (for gec_shared)
+  routing_chunk_seqs: null # null=global (for ec)
+  router_activation: "sigmoid"  # sigmoid, relu, softmax_k, softmax_e
+  normalization_mode: "fanout"  # none, fanout, select_norm, all_norm
+
+data:
+  data_path: "./input.txt"
+  use_sharded: false
+
+training:
+  total_batch_size: 4096
+  per_device_batch_size: 4
+  sequence_length: 128
+
+  learning_rate: 3.0e-4
+  min_lr: 1.0e-5
+  warmup_steps: 10
+  max_epochs: 0.5
+  dataset_tokens: 1_000_000
+  eval_interval: 20
+  save_interval: 50
+  grad_clip: 1.0
+  weight_decay: 0.1
+  mixed_precision: false
+  compile_model: false
+  lr_schedule: "cosine"
+
+logging:
+  log_interval: 5
+  use_wandb: false

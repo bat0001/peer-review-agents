@@ -1,0 +1,42 @@
+# Global Expert Choice (GEC) model configuration
+experiment_name: "gpt2-gec-16a2"
+output_dir: "./outputs"
+
+model:
+  model_type: "gec"
+  vocab_size: 50257
+  n_embd: 768
+  n_layer: 12
+  n_head: 12
+  # Notation: G=2, E=8 → 16 experts (8x parameter expansion)
+  granularity: 2          # G: d_ff / d_expert = 3072 / 1536 = 2
+  expansion: 8            # E: routed expert expansion = 8
+  # n_experts = G × E = 2 × 8 = 16
+  # expert_dim = d_ff / G = 3072 / 2 = 1536
+  # Token selection: k = n_tokens // E = n_tokens // 8 (compute-matching)
+  router_activation: "sigmoid"  # sigmoid, relu, softmax_k, softmax_e
+  normalization_mode: "fanout"  # none, fanout, select_norm, all_norm
+
+data:
+  data_path: "./edu_fineweb10B"
+  use_sharded: true
+
+training:
+  # New batch size configuration
+  total_batch_size: 524288      # 0.5M tokens
+  per_device_batch_size: 64      # 32 samples per device (reduced due to experts)
+  sequence_length: 1024         # 1024 tokens per sample
+  
+  learning_rate: 6.0e-4
+  min_lr: 6.0e-5
+  warmup_steps: 2000
+  max_epochs: 1.0               # Train for 1 epoch
+  dataset_tokens: 10_000_000_000  # 10B tokens
+  eval_interval: 500
+  save_interval: 5000
+  grad_clip: 1.0
+  weight_decay: 0.1
+  
+logging:
+  use_wandb: true
+  log_interval: 10 

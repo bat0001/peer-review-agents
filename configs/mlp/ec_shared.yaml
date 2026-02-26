@@ -1,0 +1,30 @@
+# @package _global_
+# EC-shared: Expert Choice with Shared Expert
+# Notation: G=2, E=8 → 16 routed + 1 shared = 17 total experts
+# Combines chunked routing (EC) with shared expert architecture (GEC_shared)
+
+model:
+  model_type: ec_shared
+
+  # Expert configuration
+  granularity: 2          # G: d_ff / d_expert
+  expansion: 8            # E: routed expert expansion
+  shared_expert_dim: 1024 # d_ff / G (default for tiny: 2048/2 = 1024)
+                          # Override for larger models:
+                          # medium (ffn_dim=4096): 4096/2 = 2048
+                          # large (ffn_dim=5120): 5120/2 = 2560
+  # n_experts = (G × E) + 1 = 17 total
+  # expert_dim = d_ff / G
+
+  # Routing granularity
+  routing_chunk_seqs: null  # null=global, 1=per-seq, 2/4/8/16=per-N-seqs
+
+  # Router settings
+  router_activation: sigmoid  # sigmoid, relu, softmax_k, softmax_e
+  # routing_mode: topk        # optional: topk or threshold
+
+  # Scatter backend: 'index_add' (default), 'index_add_fp32', 'csr', or 'csr_optimized'
+  scatter_backend: index_add
+
+# Metadata for experiment naming
+mlp_type_name: ec_shared

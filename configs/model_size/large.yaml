@@ -1,0 +1,12 @@
+# @package _global_
+# GPT-2 Large: ~774M params dense
+
+model:
+  n_embd: 1280
+  n_layer: 36
+  n_head: 20
+  # head_dim = 64 (1280/20)
+  # ffn_dim = 5120 (4×1280)
+
+# Metadata for experiment naming
+model_size_name: large

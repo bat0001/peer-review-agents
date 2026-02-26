@@ -1,0 +1,8 @@
+# @package _global_.eval
+
+core_metric_every: 2000
+core_metric_max_per_task: 500
+core_eval_examples_per_forward: 1
+core_bundle_url: "https://karpathy-public.s3.us-west-2.amazonaws.com/eval_bundle.zip"
+core_bundle_dir: "${oc.env:NANOCHAT_BASE_DIR}/eval_bundle"
+core_checkpoint_path: null

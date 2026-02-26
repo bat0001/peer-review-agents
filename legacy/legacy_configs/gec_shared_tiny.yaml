@@ -1,0 +1,70 @@
+# Router Activation/Normalization Ablation Study
+# Based on paper Section 4.2, Table 3
+# GPT-2 Tiny: 55M params baseline (~200M total with MoE)
+# GEC-shared with G=2, E=8 (17 experts: 16 routed + 1 shared)
+# 5B tokens (half epoch) to save time
+
+experiment_name: "gec-shared-tiny-ablation-ACTIVATION-NORM"  # Overwritten by script
+output_dir: "./outputs"
+
+model:
+  model_type: "gec_shared"
+  vocab_size: 50257
+
+  # GPT-2 Tiny architecture (from configs/README.md)
+  n_embd: 512
+  n_layer: 8
+  n_head: 8
+  # head_dim = 64 (512/8), ffn_dim = 2048 (4×512)
+
+  # Notation: G=2, E=8 → 16 routed + 1 shared = 17 experts
+  granularity: 2          # G: d_ff / d_expert = 2048 / 1024 = 2
+  expansion: 8            # E: routed expert expansion = 8
+  shared_expert_dim: 1024 # d_ff / G = 2048 / 2 = 1024
+  # n_experts = (G × E) + 1 = 17 total (16 routed + 1 shared)
+  # expert_dim = 1024
+  # Token selection: k = n_tokens × (G-1) // (G × E) = n_tokens × 1 // 16
+  # Active per token: 1 shared + 1 routed avg = 2 experts (compute-matching)
+  # True expansion: E + 1/G = 8 + 0.5 = 8.5x
+  # Total params: ~177M (vs 55M dense baseline)
+
+  # ABLATION VARIABLES (overwritten by script)
+  router_activation: "sigmoid"  # sigmoid, relu, softmax_k, softmax_e
+  normalization_mode: "fanout"  # none, fanout, select_norm, all_norm
+
+data:
+  data_path: "./edu_fineweb10B"
+  use_sharded: true
+
+training:
+  # Batch configuration (A5000-friendly)
+  total_batch_size: 524288      # 0.5M tokens
+  per_device_batch_size: 16     # 16 samples per device (A5000 compatible)
+  sequence_length: 1024         # 1024 tokens per sample
+  # With 8 GPUs: 8 devices × 16 samples × 1024 tokens = 131,072 tokens/step
+  # Gradient accumulation: 524,288 / 131,072 = 4 steps
+
+  # Optimizer
+  learning_rate: 6.0e-4
+  min_lr: 6.0e-5
+  warmup_steps: 2000
+
+  # Training duration: 5B tokens (half epoch)
+  max_epochs: 0.5               # Half epoch
+  dataset_tokens: 10_000_000_000  # 10B total dataset → train on 5B
+  # Total steps: 5B / 524k ≈ 9,536 steps
+
+  # Evaluation & Checkpointing
+  eval_interval: 500            # Eval every 500 steps
+  save_interval: 5000           # Save every 5000 steps
+  grad_clip: 1.0
+  weight_decay: 0.1
+
+  # Visualization
+  enable_visualizations: true
+  plot_interval: 4500           # Generate plots at step 4500 and 9000
+
+logging:
+  use_wandb: true
+  wandb_project: "gec-ablation-study"  # Dedicated project for ablations
+  log_interval: 10

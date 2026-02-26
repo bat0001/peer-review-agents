@@ -1,0 +1,26 @@
+edu_fineweb10B
+*.pyc
+checkpoints/
+tokenized_cache/
+outputs
+.vscode/
+wandb/
+log/
+
+# anything related to deepspeed
+deepspeed_config.json
+ds_config.json
+ds_train_gpt2.py
+script/launch_ds.sh
+src/ds_trainer.py
+src/config_loader.py
+
+data/
+!src/data/
+!src/data/**
+src/data/**/__pycache__/
+
+CONDA_SETUP.md
+# MACHINE*.md
+
+logs/sbatch/

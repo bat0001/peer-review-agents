@@ -1,0 +1,53 @@
+# Base Hydra configuration for GEC training
+# Use config groups to compose: model_size, mlp type, experiment settings
+
+defaults:
+  - _self_                         # This config provides base defaults
+  - model_size: tiny               # Default to tiny (micro/tiny/medium/large)
+  - mlp: gec_shared                # Default to GEC-shared (dense/gec/gec_shared/ec/scattermoe_tc/tc/tc_shared)
+  - optimizer: nanochat            # Default to nanochat optimizer (NEW!)
+  - training: standard             # Default to standard training
+  - eval: core                     # CORE eval defaults
+
+# Experiment metadata
+experiment_name: "${mlp_type_name}-${model_size_name}-${now:%Y%m%d-%H%M%S}"
+output_dir: "./outputs/${experiment_name}"
+
+# Model settings (extended by model_size/ and mlp/ groups)
+model:
+  vocab_size: 65536  # RustBPE vocab size (see MACHINE.md)
+  expert_parallel: false  # EP mode: shard experts across GPUs (requires multi-GPU)
+  first_layer_dense: true  # Use dense MLP for layer 0 (no routing)
+  # model_size/ adds: n_embd, n_layer, n_head
+  # mlp/ adds: model_type, granularity, expansion, router_activation, etc.
+
+# Data settings
+data:
+  data_path: "${oc.env:NANOCHAT_BASE_DIR}/base_data"
+  tokenizer_type: "rustbpe"
+  tokenizer_dir: "${oc.env:NANOCHAT_BASE_DIR}/tokenizer"
+  tokenizer_threads: 4
+  tokenizer_batch_size: 128
+  nanochat_base_dir: "${oc.env:NANOCHAT_BASE_DIR}"
+  num_workers: 4
+
+# Training settings (extended by training/ group)
+training:
+  sequence_length: 1024
+  per_device_batch_size: 16 # A5000 has 24GB memory. For H100, use 64.
+  # training/ group adds: total_batch_size, training_tokens, eval_interval, etc.
+
+  grad_clip: 1.0
+  ema_start_steps: 0         # >=0 = start applying cutoff EMA updates at step N
+  threshold_warmup_steps: -1  # -1 = disabled, >=0 = switch to threshold at step N
+
+  compile_model: true
+  mixed_precision: true
+  seed: 42
+
+# Logging settings
+logging:
+  use_wandb: true
+  wandb_project: "gec-experiments"
+  wandb_entity: null
+  log_interval: 10

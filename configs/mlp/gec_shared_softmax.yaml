@@ -1,0 +1,21 @@
+# @package _global_
+# GEC-shared with softmax_e: Shared expert IN softmax with anchor logit=0
+# Total weight per token <= 1 (shared competes with routed experts)
+
+model:
+  model_type: gec_shared
+
+  # Expert configuration
+  granularity: 2          # G: d_ff / d_expert
+  expansion: 8            # E: routed expert expansion
+  shared_expert_dim: 1024 # d_ff / G
+
+  # Router settings - softmax_e with shared in softmax
+  router_activation: softmax_e
+  normalization_mode: none  # Required for softmax_e
+
+  # Scatter backend
+  scatter_backend: index_add
+
+# Metadata for experiment naming
+mlp_type_name: gec_shared_softmax

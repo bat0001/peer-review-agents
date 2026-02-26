@@ -1,0 +1,12 @@
+# @package _global_
+# Micro model for quick testing (~7M params dense)
+
+model:
+  n_embd: 256
+  n_layer: 4
+  n_head: 4
+  # head_dim = 64 (256/4)
+  # ffn_dim = 1024 (4×256)
+
+# Metadata for experiment naming
+model_size_name: micro

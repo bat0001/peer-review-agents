@@ -1,0 +1,24 @@
+# @package _global_
+# ScatterMoE token-choice MoE with shared expert (top-k routed experts per token)
+# Token selection: top_k = G - 1 (routed only)
+
+model:
+  model_type: tc_shared
+
+  # Expert configuration
+  granularity: 2          # G: d_ff / d_expert
+  expansion: 8            # E: routed expert expansion
+  # n_experts = G × E + 1 (routed + 1 shared)
+  # top_k = G - 1 (derived)
+
+  # Router settings
+  router_activation: sigmoid  # sigmoid, relu, softmax_e
+  normalization_mode: none    # ignored (token-choice uses raw gates)
+
+  # Load balancing
+  load_balance_method: none   # none, aux, aux_error, deepseek
+  aux_loss_coef: 0.0
+  deepseek_bias_lr: 0.0
+
+# Metadata for experiment naming
+mlp_type_name: tc_shared

@@ -1,0 +1,9 @@
+# @package _global_
+# Standard dense FFN - no MoE
+
+model:
+  model_type: dense
+  # No additional MoE parameters needed
+
+# Metadata for experiment naming
+mlp_type_name: dense

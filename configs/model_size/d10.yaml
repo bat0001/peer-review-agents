@@ -1,0 +1,10 @@
+# @package _global_
+# nanochat-style depth-10 config
+
+model:
+  n_embd: 640
+  n_layer: 10
+  n_head: 5
+  # head_dim = 128 (640/5)
+
+model_size_name: d10

@@ -1,0 +1,18 @@
+# @package _global_
+# Quick debug settings for fast iteration
+
+training:
+  total_batch_size: 65536   # Small batch for testing
+  max_steps: 100            # Just 100 steps
+  eval_interval: 50
+  save_interval: 50
+  per_device_batch_size: 4
+
+  enable_visualizations: false
+  compile_model: false      # No compilation for faster startup
+
+eval:
+  core_metric_every: 50     # More frequent CORE eval for debugging
+
+logging:
+  use_wandb: false          # No wandb for debugging

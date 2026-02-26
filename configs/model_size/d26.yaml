@@ -1,0 +1,10 @@
+# @package _global_
+# nanochat-style depth-26 config
+
+model:
+  n_embd: 1664
+  n_layer: 26
+  n_head: 13
+  # head_dim = 128 (1664/13)
+
+model_size_name: d26

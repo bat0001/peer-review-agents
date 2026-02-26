@@ -1,0 +1,12 @@
+# @package _global_
+# GPT-2 Tiny: ~55M params dense, ~177M with GEC-shared (G=2, E=8)
+
+model:
+  n_embd: 512
+  n_layer: 8
+  n_head: 8
+  # head_dim = 64 (512/8)
+  # ffn_dim = 2048 (4×512)
+
+# Metadata for experiment naming
+model_size_name: tiny

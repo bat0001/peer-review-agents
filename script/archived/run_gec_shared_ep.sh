@@ -1,0 +1,90 @@
+#!/bin/bash
+# Train GEC_shared with Expert Parallelism (EP)
+# Uses: gec_shared model type with expert_parallel=true
+# WandB project: ec-shared-experiments
+
+set -e  # Exit on error
+
+# Configuration
+OUTPUT_BASE="./log/gec_shared_ep"
+GPUS="2,3,4,5,6,7,8,9"  # 8 GPUs (avoiding GPU 0,1 which may be in use)
+N_GPUS=8
+
+# Training settings (matching run_gec_shared_csr.sh)
+TOTAL_BATCH_SIZE=524288
+PER_DEVICE_BATCH_SIZE=16
+SEQ_LENGTH=1024
+
+# Scatter backend for EP
+SCATTER_BACKEND="index_add_fp32"
+
+# First layer dense (no routing for L0)
+FIRST_LAYER_DENSE=true
+
+# Colors for output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}=====================================${NC}"
+echo -e "${BLUE}GEC_shared with Expert Parallelism${NC}"
+echo -e "${BLUE}=====================================${NC}"
+echo "GPUs: ${GPUS} (${N_GPUS} devices)"
+echo "Total batch size: ${TOTAL_BATCH_SIZE} tokens"
+echo "Per-device batch size: ${PER_DEVICE_BATCH_SIZE} samples"
+echo "Sequence length: ${SEQ_LENGTH} tokens"
+echo "Gradient accumulation steps: $((TOTAL_BATCH_SIZE / (N_GPUS * PER_DEVICE_BATCH_SIZE * SEQ_LENGTH)))"
+echo "Scatter backend: ${SCATTER_BACKEND}"
+echo "Expert Parallel: true (world_size=${N_GPUS})"
+echo "First layer dense: ${FIRST_LAYER_DENSE}"
+echo "WandB project: ec-shared-experiments"
+echo ""
+
+# Create output directory
+mkdir -p "${OUTPUT_BASE}"
+
+# Build experiment name
+FLD_SUFFIX=""
+if [ "${FIRST_LAYER_DENSE}" = "true" ]; then
+    FLD_SUFFIX="_fld"
+fi
+EXP_NAME="gec_shared_epx${N_GPUS}_topk${FLD_SUFFIX}"
+
+echo -e "${GREEN}=====================================${NC}"
+echo -e "${GREEN}Starting experiment: ${EXP_NAME}${NC}"
+echo -e "${GREEN}=====================================${NC}"
+
+# Create experiment output directory
+mkdir -p "${OUTPUT_BASE}/${EXP_NAME}"
+
+# Set environment variables
+export CUDA_VISIBLE_DEVICES="${GPUS}"
+export MASTER_ADDR="localhost"
+export MASTER_PORT=29502  # Different port to avoid conflicts
+
+# Run training with torchrun and Hydra config
+/data2/hanchi/miniconda3/envs/gec/bin/torchrun \
+    --nproc_per_node=${N_GPUS} \
+    --nnodes=1 \
+    --node_rank=0 \
+    --master_addr="${MASTER_ADDR}" \
+    --master_port="${MASTER_PORT}" \
+    train.py \
+    mlp=gec_shared \
+    model_size=tiny \
+    training=standard \
+    experiment_name="${EXP_NAME}" \
+    model.expert_parallel=true \
+    model.scatter_backend=${SCATTER_BACKEND} \
+    model.first_layer_dense=${FIRST_LAYER_DENSE} \
+    training.total_batch_size=${TOTAL_BATCH_SIZE} \
+    training.per_device_batch_size=${PER_DEVICE_BATCH_SIZE} \
+    training.sequence_length=${SEQ_LENGTH} \
+    logging.wandb_project=ec-shared-experiments \
+    output_dir="${OUTPUT_BASE}" \
+    2>&1 | tee "${OUTPUT_BASE}/${EXP_NAME}/train.log"
+
+echo -e "${GREEN}=====================================${NC}"
+echo -e "${GREEN}Training completed!${NC}"
+echo -e "${GREEN}Results saved to: ${OUTPUT_BASE}/${EXP_NAME}${NC}"
+echo -e "${GREEN}=====================================${NC}"

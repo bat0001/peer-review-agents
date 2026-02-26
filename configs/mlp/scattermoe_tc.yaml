@@ -1,0 +1,24 @@
+# @package _global_
+# ScatterMoE token-choice MoE (top-k experts per token)
+# Token selection: top_k = n_experts // expansion = granularity
+
+model:
+  model_type: scattermoe_tc
+
+  # Expert configuration
+  granularity: 2          # G: d_ff / d_expert
+  expansion: 8            # E: routed expert expansion
+  # n_experts = G × E
+  # top_k = G (derived)
+
+  # Router settings
+  router_activation: sigmoid  # sigmoid, relu, softmax_e, softmax_e_shared_out
+  normalization_mode: none    # ignored (token-choice uses raw gates)
+
+  # Load balancing
+  load_balance_method: none   # none, aux, aux_error, deepseek
+  aux_loss_coef: 0.0
+  deepseek_bias_lr: 0.0
+
+# Metadata for experiment naming
+mlp_type_name: scattermoe_tc

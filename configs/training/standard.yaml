@@ -1,0 +1,12 @@
+# @package _global_.training
+# Standard 10B token run
+
+total_batch_size: 524288
+training_tokens: 10  # 10B tokens
+
+eval_interval: 250
+eval_tokens: 10485760
+save_interval: 5000
+
+enable_visualizations: true
+plot_interval: null

@@ -1,0 +1,27 @@
+# Main dependencies
+torch>=2.9.0
+numpy
+triton
+
+# Tokenizer
+rustbpe
+tiktoken
+tokenizers==0.22.0 # we dont need it but the script imports it 
+
+# Data loading
+pyarrow
+requests
+filelock
+datasets
+
+# Configuration
+hydra-core>=1.3.2
+omegaconf>=2.3.0
+PyYAML
+tqdm
+
+# Logging & eval
+wandb
+jinja2
+matplotlib
+

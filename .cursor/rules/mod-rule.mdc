@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Today is no later than June 2025.
+
+The torch version is 2.7.1, so look it up before making any edits.
+
+When you download a library that is not specified in requirements.txt, you should just download the newest version, then check which version it is, and lastly put it in requirements.txt.
+
+Use ```conda activate mod``` when you start a terminal.
+
+When you test a piece of code, use --no-wandb. Do not add this flag for actual training runs.

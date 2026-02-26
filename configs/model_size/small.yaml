@@ -1,0 +1,12 @@
+# @package _global_
+# GPT-2 Small (standard): ~117M params dense
+
+model:
+  n_embd: 768
+  n_layer: 12
+  n_head: 12
+  # head_dim = 64 (768/12)
+  # ffn_dim = 3072 (4×768)
+
+# Metadata for experiment naming
+model_size_name: small

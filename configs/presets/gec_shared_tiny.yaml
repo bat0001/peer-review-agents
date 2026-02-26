@@ -1,0 +1,47 @@
+# @package _global_
+# Preset: GEC-shared Tiny configuration
+# Convenient preset for ablation studies
+# Usage: python train.py --config-name=presets/gec_shared_tiny model.router_activation=relu
+
+# Import config groups
+defaults:
+  - /model_size: tiny
+  - /mlp: gec_shared
+  - /training: quick
+  - /experiment: ablation_router
+  - _self_
+
+# Base config fields (from config.yaml)
+# These are placed at global scope via @package _global_
+experiment_name: "ablation-router-${model.router_activation}-${model_size_name}"
+output_dir: "./outputs/${experiment_name}"
+
+# Model base settings
+model:
+  vocab_size: 50304  # Padded to multiple of 64 for GPU efficiency
+  shared_expert_dim: 1024  # d_ff / G = 2048 / 2 for tiny
+
+# Data settings
+data:
+  data_path: "${oc.env:NANOCHAT_BASE_DIR}/base_data"
+  tokenizer_type: "rustbpe"
+  tokenizer_dir: "${oc.env:NANOCHAT_BASE_DIR}/tokenizer"
+  tokenizer_threads: 4
+  tokenizer_batch_size: 128
+  nanochat_base_dir: "${oc.env:NANOCHAT_BASE_DIR}"
+  num_workers: 4
+
+# Training settings (merged with /training: quick)
+training:
+  sequence_length: 1024
+  per_device_batch_size: 16
+  grad_clip: 1.0
+  compile_model: true
+  mixed_precision: true
+  seed: 42
+
+# Logging settings
+logging:
+  use_wandb: true
+  wandb_entity: null
+  log_interval: 10

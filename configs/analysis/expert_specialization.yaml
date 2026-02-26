@@ -1,0 +1,29 @@
+# @package analysis
+name: expert_specialization
+checkpoint_path: null
+output_dir: "./outputs/expert_specialization"
+
+# datasets (HF)
+hf_datasets:
+  - name: gsm8k
+    subset: main
+    split: train
+    domain: math
+  - name: humaneval
+    subset: null
+    split: test
+    domain: code
+
+# templates (fixed)
+# gsm8k: "qa_prefix" = "Question: {question}\nAnswer:", "qa_full" = with CoT answer
+gsm8k_template: "qa_full"
+humaneval_template: "prompt_plus_solution"  # "{prompt}\n{canonical_solution}"
+
+# sampling / batching
+max_sequences_per_domain: 512
+sequence_length: 1024
+batch_size: 4
+seed: 1234
+
+# passage fanout (first example from each dataset)
+dump_passage_fanout: true

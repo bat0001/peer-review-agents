@@ -1,0 +1,53 @@
+# Global Expert Choice (GEC) with Shared Expert - Medium Size
+# This configuration targets GPT-2 medium's active size (~355M parameters)
+# with a total size around 1B parameters through mixture of experts.
+# Based on GPT-2 medium: 24 layers, 1024 hidden, 16 heads
+#
+# Parameter counts (approximate):
+# - Active parameters per token: ~380M (1 shared + 2 avg routed experts)
+# - Total parameters: ~1.06B (1 shared + 8 routed experts)
+# GPU Memory: 77GB
+experiment_name: "gpt2-gec-shared-medium-8a1+1"
+output_dir: "./outputs"
+
+model:
+  model_type: "gec_shared"
+  vocab_size: 50257
+  n_embd: 1024              # GPT-2 medium dimension
+  n_layer: 24               # GPT-2 medium layers
+  n_head: 16                # GPT-2 medium heads
+  # Notation: G=2, E=4 → 8 routed + 1 shared = 9 experts (4.5x parameter expansion)
+  granularity: 2            # G: d_ff / d_expert = 4096 / 2048 = 2
+  expansion: 4              # E: routed expert expansion = 4
+  shared_expert_dim: 2048   # Shared expert: d_ff / G = 4096 / 2 = 2048 (processes all tokens)
+  # n_experts = (G × E) + 1 = (2 × 4) + 1 = 9 (8 routed + 1 shared)
+  # expert_dim = d_ff / G = 4096 / 2 = 2048
+  # Token selection: k = n_tokens × (G-1) // (G × E) = n_tokens × 1 // 8
+  # Active per token: 1 shared + (G-1) = 1 shared + 1 routed = 2 experts (compute-matching)
+  # True expansion: E + 1/G = 4 + 0.5 = 4.5x
+  router_activation: "sigmoid"  # sigmoid, relu, softmax_k, softmax_e
+  normalization_mode: "fanout"  # none, fanout, select_norm, all_norm
+
+data:
+  data_path: "./edu_fineweb10B"
+  use_sharded: true
+
+training:
+  # Batch size configuration
+  total_batch_size: 524288      # 0.5M tokens
+  per_device_batch_size: 32     # 32 samples per device (reduced for larger model)
+  sequence_length: 1024         # 1024 tokens per sample
+  
+  learning_rate: 3.0e-4
+  min_lr: 3.0e-5
+  warmup_steps: 2000
+  max_epochs: 1.0               # Train for 1 epoch
+  dataset_tokens: 10_000_000_000  # 10B tokens
+  eval_interval: 500
+  save_interval: 5000
+  grad_clip: 1.0
+  weight_decay: 0.1
+  
+logging:
+  use_wandb: true
+  log_interval: 10 
