@@ -13,39 +13,15 @@ import torch
 import torch.distributed as dist
 
 from src.config import Config
-from src.eval.core import evaluate_model
+from src.eval.runner import run_core_eval
 from src.models import BaseGPT, ModelConfig
 from src.tokenizer import get_tokenizer
-from src.utils.distributed import compute_init, compute_cleanup, print0
-
-
-def _shard_expert_state_dict(state_dict, model_config, rank: int, world_size: int):
-    model_type = model_config.model_type
-    n_routed_experts = model_config.n_experts - 1 if "shared" in model_type else model_config.n_experts
-    if n_routed_experts % world_size != 0:
-        raise ValueError("n_routed_experts must be divisible by world_size for EP")
-    local_experts = n_routed_experts // world_size
-    start = rank * local_experts
-    end = start + local_experts
-
-    sharded = {}
-    for key, value in state_dict.items():
-        if ".expert_weight1." in key or ".expert_weight2." in key:
-            prefix, idx_str = key.rsplit(".", 1)
-            global_idx = int(idx_str)
-            if start <= global_idx < end:
-                local_idx = global_idx - start
-                new_key = f"{prefix}.{local_idx}"
-                sharded[new_key] = value
-            continue
-        sharded[key] = value
-    return sharded
+from src.utils.checkpoint import load_checkpoint, shard_model_state_for_ep_eval
+from src.utils.distributed import compute_cleanup, compute_init, print0
 
 
 def load_checkpoint_model(checkpoint_path: str, device: torch.device):
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    if "config" not in checkpoint:
-        raise ValueError("Checkpoint missing config")
+    checkpoint = load_checkpoint(checkpoint_path, map_location="cpu")
 
     config = Config.from_dict(checkpoint["config"])
     tokenizer = get_tokenizer(config.data.tokenizer_dir)
@@ -60,9 +36,9 @@ def load_checkpoint_model(checkpoint_path: str, device: torch.device):
 
     state_dict = checkpoint["model_state_dict"]
     if expert_parallel:
-        state_dict = _shard_expert_state_dict(
-            state_dict,
-            model_config,
+        state_dict = shard_model_state_for_ep_eval(
+            state_dict=state_dict,
+            model_cfg=config.model,
             rank=dist.get_rank(),
             world_size=dist.get_world_size(),
         )
@@ -83,7 +59,7 @@ def main(cfg: DictConfig) -> None:
     if not Path(config.eval.core_checkpoint_path).exists():
         raise FileNotFoundError(f"Checkpoint not found: {config.eval.core_checkpoint_path}")
 
-    ddp, rank, local_rank, world_size, device = compute_init(
+    _ddp, rank, _local_rank, _world_size, device = compute_init(
         seed=config.training.seed,
         expert_parallel=config.model.get("expert_parallel", False),
     )
@@ -92,16 +68,13 @@ def main(cfg: DictConfig) -> None:
         model, tokenizer, _ = load_checkpoint_model(config.eval.core_checkpoint_path, device)
 
         autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
-        with autocast_ctx:
-            out = evaluate_model(
-                model=model,
-                tokenizer=tokenizer,
-                device=device,
-                max_per_task=config.eval.core_metric_max_per_task,
-                eval_examples_per_forward=config.eval.core_eval_examples_per_forward,
-                bundle_url=config.eval.core_bundle_url,
-                bundle_dir=config.eval.core_bundle_dir,
-            )
+        out = run_core_eval(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            eval_config=config.eval,
+            autocast_ctx=autocast_ctx,
+        )
 
         if rank == 0:
             print0("=" * 80)

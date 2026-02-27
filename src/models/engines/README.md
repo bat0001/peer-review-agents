@@ -24,7 +24,7 @@ Responsibilities:
 
 ## Selection Rule
 
-Model wrappers (`gec.py`, `gec_shared.py`) choose by `config.expert_parallel`:
+Model wrappers (`expert_choice.py`) choose by `config.expert_parallel`:
 
 - `false` -> `ExpertEngine`
 - `true` -> `ParallelExperts`

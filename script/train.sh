@@ -20,6 +20,8 @@ while [[ $# -gt 0 ]]; do
         --deepseek-lr)  DEEPSEEK_BIAS_LR="$2"; shift 2;;
         --aux-coef)     AUX_LOSS_COEF="$2"; shift 2;;
         --router)       ROUTER_ACTIVATION="$2"; shift 2;;
+        --shared-expert) SHARED_EXPERT=1; shift;;
+        --no-shared-expert) SHARED_EXPERT=0; shift;;
         --cutoff-alpha) CUTOFF_EMA_ALPHA="$2"; shift 2;;
         --batch-size)   TOTAL_BATCH_SIZE="$2"; shift 2;;
         --bsz)          MICRO_BATCH_SIZE="$2"; shift 2;;
@@ -38,10 +40,18 @@ done
 : "${TRAINING_TOKENS:?TRAINING_TOKENS must be set (via env var or SLURM)}"
 [[ "${MLP}" != "dense" ]] && : "${G:?G must be set for MoE models (via --g)}" "${E:?E must be set for MoE models (via --e)}"
 
-# EP is only supported for gec/gec_shared
-if [[ "${MLP}" != "gec_shared" && "${MLP}" != "gec" ]]; then
+# EP is only supported for expert_choice family
+if [[ "${MLP}" != "expert_choice" ]]; then
     [[ -z "${NO_EP:-}" ]] && NO_EP=1
-    echo "EP disabled for mlp=${MLP} (only gec/gec_shared support EP)."
+    echo "EP disabled for mlp=${MLP} (only expert_choice family supports EP)."
+fi
+
+if [[ -n "${SHARED_EXPERT+x}" ]]; then
+    if [[ "${SHARED_EXPERT}" -eq 1 ]]; then
+        SHARED_EXPERT_BOOL=true
+    else
+        SHARED_EXPERT_BOOL=false
+    fi
 fi
 
 # Fixed values
@@ -95,6 +105,7 @@ args=(
 [[ -n "${WARMUP_STEPS:-}" ]]        && args+=("++training.threshold_warmup_steps=${WARMUP_STEPS}")
 [[ -n "${EMA_START_STEPS:-}" ]]     && args+=("++training.ema_start_steps=${EMA_START_STEPS}")
 [[ -n "${ROUTER_ACTIVATION:-}" ]]   && args+=("++model.router_activation=${ROUTER_ACTIVATION}")
+[[ -n "${SHARED_EXPERT+x}" ]]       && args+=("++model.shared_expert=${SHARED_EXPERT_BOOL}")
 [[ -n "${CUTOFF_EMA_ALPHA:-}" ]]    && args+=("++model.cutoff_ema_alpha=${CUTOFF_EMA_ALPHA}")
 [[ -n "${EXPERIMENT:-}" ]]          && args+=("+experiment=${EXPERIMENT}")
 [[ -z "${NO_EP:-}" ]]               && args+=("model.expert_parallel=true")

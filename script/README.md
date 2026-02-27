@@ -20,7 +20,7 @@
 
 ```bash
 # single run
-MODEL_SIZE=tiny TRAINING_TOKENS=1 N_GPUS=1 ./script/train.sh --mlp gec_shared --g 2 --e 8
+MODEL_SIZE=tiny TRAINING_TOKENS=1 N_GPUS=1 ./script/train.sh --mlp expert_choice --g 2 --e 8
 
 # run catalog
 ./script/run_configs.sh

@@ -164,8 +164,10 @@ def _build_example_inputs(idx, model, tokenizer, data, device, task_meta):
     if num_fewshot > 0:
         rng = random.Random(1234 + idx)
         available_indices = [i for i in range(len(data)) if i != idx]
-        fewshot_indices = rng.sample(available_indices, num_fewshot)
-        fewshot_examples = [data[i] for i in fewshot_indices]
+        sample_size = min(num_fewshot, len(available_indices))
+        if sample_size > 0:
+            fewshot_indices = rng.sample(available_indices, sample_size)
+            fewshot_examples = [data[i] for i in fewshot_indices]
 
     if task_type == "multiple_choice":
         prompts = render_prompts_mc(item, continuation_delimiter, fewshot_examples)

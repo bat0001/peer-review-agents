@@ -1,10 +1,10 @@
-# Base Hydra configuration for GEC training
+# Base Hydra configuration for expert-choice training
 # Use config groups to compose: model_size, mlp type, experiment settings
 
 defaults:
   - _self_                         # This config provides base defaults
   - model_size: tiny               # Default to tiny (micro/tiny/medium/large)
-  - mlp: gec_shared                # Default to GEC-shared (dense/gec/gec_shared/ec/scattermoe_tc/tc/tc_shared)
+  - mlp: expert_choice             # Canonical expert-choice default
   - optimizer: nanochat            # Default to nanochat optimizer (NEW!)
   - training: standard             # Default to standard training
   - eval: core                     # CORE eval defaults
@@ -16,10 +16,11 @@ output_dir: "./outputs/${experiment_name}"
 # Model settings (extended by model_size/ and mlp/ groups)
 model:
   vocab_size: 65536  # RustBPE vocab size (see MACHINE.md)
+  block_size: 2048
   expert_parallel: false  # EP mode: shard experts across GPUs (requires multi-GPU)
   first_layer_dense: true  # Use dense MLP for layer 0 (no routing)
   # model_size/ adds: n_embd, n_layer, n_head
-  # mlp/ adds: model_type, granularity, expansion, router_activation, etc.
+  # mlp/ adds: model_type, shared_expert, granularity, expansion, policy, router activation, etc.
 
 # Data settings
 data:
@@ -33,7 +34,7 @@ data:
 
 # Training settings (extended by training/ group)
 training:
-  sequence_length: 1024
+  sequence_length: 2048
   per_device_batch_size: 16 # A5000 has 24GB memory. For H100, use 64.
   # training/ group adds: total_batch_size, training_tokens, eval_interval, etc.
 
@@ -48,6 +49,6 @@ training:
 # Logging settings
 logging:
   use_wandb: true
-  wandb_project: "gec-experiments"
+  wandb_project: "expert-choice-experiments"
   wandb_entity: null
   log_interval: 10

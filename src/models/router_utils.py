@@ -1,9 +1,4 @@
-"""Router activation and utility functions.
-
-This module provides activation functions for MoE routing that operate on
-ALL router logits before top-k selection, enabling unified gather-based
-weight extraction.
-"""
+"""Router activation helpers used by MoE routing backends."""
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -16,35 +11,7 @@ def apply_router_activation(
     G: int = 2,
     include_shared: bool = True
 ) -> Tuple[Optional[Tensor], Optional[Tensor]]:
-    """Apply activation to ALL router logits before top-k selection.
-
-    This unified function handles all activation types. For most activations,
-    it computes weights for all (token, expert) pairs, which are later
-    gathered at selected positions.
-
-    Args:
-        router_logits: (B*T, n_routed_experts) raw router logits
-        activation: One of: sigmoid, relu, softmax_k, softmax_e, softmax_e_shared_out
-        G: Granularity, used for softmax_e_shared_out (shared weight = 1/G)
-        include_shared: Whether to include a shared expert anchor for softmax_e variants
-
-    Returns:
-        all_weights: (B*T, n_routed_experts) or None
-            - For sigmoid/relu/softmax_e*: activated weights for all positions
-            - For softmax_k: None (requires top-k positions, handled separately)
-        shared_weights: (B*T,) or None
-            - For softmax_e: per-token shared expert weight (from softmax with anchor=0)
-            - For softmax_e_shared_out: fixed 1/G per token
-            - For softmax_e variants with include_shared=False: None
-            - For others: None (shared weight computed via fanout normalization)
-
-    Weight semantics by activation:
-        - sigmoid: bounded (0, 1), independent per expert
-        - relu: sparse, unbounded positive
-        - softmax_k: per-expert normalization (across k selected tokens)
-        - softmax_e: per-token normalization (shared IN softmax, anchor=0)
-        - softmax_e_shared_out: per-token normalization (shared OUT, fixed 1/G)
-    """
+    """Return routed weights (and optional shared weights) from router logits."""
     n_tokens = router_logits.shape[0]
     device = router_logits.device
     dtype = router_logits.dtype
@@ -90,23 +57,3 @@ def apply_router_activation(
 
     else:
         raise ValueError(f"Unknown router_activation: {activation}")
-
-
-def compute_fanout(
-    n_tokens: int,
-    indices: Tensor,
-    device: torch.device,
-    dtype: torch.dtype
-) -> Tensor:
-    """Count how many experts selected each token.
-
-    Args:
-        n_tokens: Total number of tokens (B*T)
-        indices: (total_selected,) flattened token indices from all experts
-        device: Output device
-        dtype: Output dtype
-
-    Returns:
-        fanout: (n_tokens,) count of experts that selected each token
-    """
-    return torch.bincount(indices, minlength=n_tokens).to(dtype)

@@ -40,29 +40,33 @@ class ModelConfig:
     - For compute-matching with dense: E × selection_rate ≈ 1
     """
     # Core model parameters
-    vocab_size: int = 50304
-    block_size: int = 1024
+    vocab_size: int = 65536
+    block_size: int = 2048
     n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
 
     # Model variant
-    model_type: str = "dense"  # dense, gec, gec_shared, ec, scattermoe_tc, tc_shared
+    model_type: str = "dense"  # dense, expert_choice, token_choice
     first_layer_dense: bool = False  # Use dense MLP for layer 0 (no routing)
 
     # MoE/GEC parameters (new paper notation)
     granularity: int = 2       # G: ratio of FFN dim to expert dim (dff / dexpert), must be power of 2
     expansion: int = 4         # E: expansion rate (total params / dense params)
 
+    # Expert-choice variant axes
+    shared_expert: bool = False  # expert_choice and token_choice
+
     # Routing configuration
     routing_chunk_seqs: Optional[int] = None  # Number of sequences per routing chunk (None=global)
     router_activation: str = "sigmoid"  # Router activation: sigmoid, relu, softmax_k, softmax_e, softmax_e_shared_out
-    routing_mode: str = "topk"  # Routing mode (training only): 'topk' or 'threshold'
+    selection_policy: str = "topk"  # topk (EC-style) or threshold (GEC-style)
+    routing_mode: Optional[str] = None  # Deprecated alias for selection_policy
     threshold_warmup_steps: int = -1  # Passed from training config; -1 = disabled, >=0 = switch at step N
     expert_capacity_factor: float = -1.0  # Capacity bounds: [k×(1-cap), k×(1+cap)] for threshold routing (-1=disabled)
     cutoff_ema_alpha: float = 0.99  # EMA decay for cutoff tracking (higher = slower adaptation)
 
-    # Token-choice load balancing (scattermoe_tc, tc_shared)
+    # Token-choice load balancing (token_choice)
     load_balance_method: str = "none"  # "none" | "aux" | "aux_error" | "deepseek"
     aux_loss_coef: float = 0.0
     deepseek_bias_lr: float = 0.0
@@ -84,28 +88,30 @@ class ModelConfig:
     weight_decay: float = 0.1
 
     def __post_init__(self):
-        # Normalize model type aliases
-        if self.model_type == "tc":
-            self.model_type = "scattermoe_tc"
-
         # Validate model type
-        assert self.model_type in ["dense", "gec", "gec_shared", "gec_shared_capacity", "ec", "ec_shared", "scattermoe_tc", "tc_shared"]
+        assert self.model_type in ["dense", "expert_choice", "token_choice"], \
+            f"Unsupported model_type: {self.model_type}"
+
+        # Normalize routing policy aliases.
+        if self.routing_mode is not None:
+            self.selection_policy = self.routing_mode
+        self.routing_mode = self.selection_policy
 
         # Validate router activation
-        if self.model_type in ["gec", "gec_shared", "gec_shared_capacity", "ec", "ec_shared", "scattermoe_tc", "tc_shared"]:
+        if self.model_type in ["expert_choice", "token_choice"]:
             assert self.router_activation in ["sigmoid", "relu", "softmax_k", "softmax_e", "softmax_e_shared_out"], \
                 f"router_activation must be one of [sigmoid, relu, softmax_k, softmax_e, softmax_e_shared_out], got {self.router_activation}"
-            if self.model_type in ["scattermoe_tc", "tc_shared"]:
+            if self.model_type == "token_choice":
                 assert self.router_activation != "softmax_k", \
                     "router_activation='softmax_k' is not supported for token-choice routing"
-            if self.model_type == "tc_shared":
+            if self.model_type == "token_choice" and not self.shared_expert:
                 assert self.router_activation != "softmax_e_shared_out", \
-                    "router_activation='softmax_e_shared_out' is not supported for tc_shared"
+                    "router_activation='softmax_e_shared_out' requires shared_expert=true for token_choice"
 
-        # Validate routing mode (training only; eval always uses threshold)
-        if self.routing_mode not in ["topk", "threshold"]:
+        # Validate policy (training only; eval always uses threshold)
+        if self.selection_policy not in ["topk", "threshold"]:
             raise ValueError(
-                f"routing_mode must be 'topk' or 'threshold', got {self.routing_mode}"
+                f"selection_policy must be 'topk' or 'threshold', got {self.selection_policy}"
             )
 
         if self.load_balance_method not in ["none", "aux", "aux_error", "deepseek"]:
@@ -115,11 +121,11 @@ class ModelConfig:
             )
 
         # Validate granularity is a power of 2 (for integer expert_dim)
-        if self.model_type in ["gec", "gec_shared", "gec_shared_capacity", "ec", "ec_shared", "scattermoe_tc", "tc_shared"]:
+        if self.model_type in ["expert_choice", "token_choice"]:
             G = self.granularity
             assert G > 0 and (G & (G - 1)) == 0, \
                 f"granularity must be a power of 2, got {G}"
-            if self.model_type in ["gec_shared", "gec_shared_capacity", "ec_shared", "tc_shared"]:
+            if self.model_type in {"expert_choice", "token_choice"} and self.shared_expert:
                 assert G >= 2, \
                     f"{self.model_type} requires granularity >= 2 (need routed experts), got {G}"
 
@@ -142,9 +148,8 @@ class ModelConfig:
             pass  # Keep the provided values
         else:
             # New notation: derive from G and E
-            # GEC/EC: n_experts = G × E
-            # GEC_shared/EC_shared: n_experts = (G × E) + 1 (routed + 1 shared)
-            if self.model_type in ["gec_shared", "gec_shared_capacity", "ec_shared", "tc_shared"]:
+            # expert_choice/token_choice: n_experts = G × E (+1 when shared expert is enabled)
+            if self.model_type in {"expert_choice", "token_choice"} and self.shared_expert:
                 self.n_experts = int(self.granularity * self.expansion) + 1
             else:
                 self.n_experts = int(self.granularity * self.expansion)
@@ -161,7 +166,6 @@ class ModelOutput:
     logits: torch.Tensor
     loss: Optional[torch.Tensor] = None
     metrics: Dict[str, torch.Tensor] = field(default_factory=dict)
-    layer_data: Optional[Dict[int, Dict[str, torch.Tensor]]] = None  # Per-layer data for visualization
 
 
 @dataclass
@@ -336,55 +340,36 @@ class BaseGPT(nn.Module):
         print(f"Model initialized with {n_params:,} parameters")
 
         # Report MoE configuration if applicable
-        if config.model_type in ["gec", "gec_shared", "gec_shared_capacity", "ec", "ec_shared", "scattermoe_tc", "tc_shared"]:
+        if config.model_type in ["expert_choice", "token_choice"]:
             print(f"  MoE Config: G={config.granularity}, E={config.expansion}")
             print(f"  → n_experts={config.n_experts}, expert_dim={config.expert_dim}")
-            if config.model_type == "ec":
-                chunk_info = f"routing_chunk_seqs={config.routing_chunk_seqs}" if config.routing_chunk_seqs is not None else "global routing"
-                print(f"  → Token selection: k = chunk_tokens // {config.expansion} ({chunk_info})")
-            elif config.model_type == "scattermoe_tc":
-                print(f"  → Token selection: top_k = {config.granularity} (token-choice)")
-            elif config.model_type == "tc_shared":
+            if config.model_type == "token_choice":
+                if config.shared_expert:
+                    n_routed = config.n_experts - 1
+                    print(f"  → {n_routed} routed experts, top_k = {config.granularity - 1} (token-choice)")
+                    print(f"  → 1 shared expert (always active, dim={config.shared_expert_dim})")
+                else:
+                    print(f"  → Token selection: top_k = {config.n_experts // config.expansion} (token-choice)")
+            elif config.model_type == "expert_choice" and config.shared_expert:
                 n_routed = config.n_experts - 1
-                print(f"  → {n_routed} routed experts, top_k = {config.granularity - 1} (token-choice)")
-                print(f"  → 1 shared expert (always active, dim={config.shared_expert_dim})")
-            elif config.model_type in ["gec_shared", "gec_shared_capacity", "ec_shared"]:
-                n_routed = config.n_experts - 1
-                active_routed = config.granularity - 1
-                print(f"  → {n_routed} routed experts, ~{active_routed} active per token")
-                print(f"  → 1 shared expert (always active, dim={config.shared_expert_dim})")
+                print(f"  → {n_routed} routed experts + 1 shared expert (dim={config.shared_expert_dim})")
                 chunk_info = f"routing_chunk_seqs={config.routing_chunk_seqs}" if config.routing_chunk_seqs is not None else "global routing"
-                print(f"  → Token selection: k = chunk_tokens × {active_routed} // ({n_routed} * {config.expansion}) ({chunk_info})")
+                print(f"  → Selection policy: {config.selection_policy} ({chunk_info})")
             else:
-                print(f"  → Token selection: k = n_tokens // {config.expansion}")
-                print(f"  → Compute-matching: ~{config.expansion} experts, each processes ~1/{config.expansion} of tokens")
+                chunk_info = f"routing_chunk_seqs={config.routing_chunk_seqs}" if config.routing_chunk_seqs is not None else "global routing"
+                print(f"  → Selection policy: {config.selection_policy} ({chunk_info})")
+                print(f"  → Compute-matching target: ~1/{config.expansion} tokens per expert")
     
     def _get_mlp_class(self) -> type:
         """Get the appropriate MLP class based on config."""
         if self.config.model_type == "dense":
             return DenseMLP
-        elif self.config.model_type == "gec":
-            from .gec import GECMLP
-            return GECMLP
-        elif self.config.model_type == "gec_shared":
-            from .gec_shared import GECSharedMLP
-            return GECSharedMLP
-        elif self.config.model_type == "gec_shared_capacity":
-            # Legacy config support: treat as gec_shared
-            from .gec_shared import GECSharedMLP
-            return GECSharedMLP
-        elif self.config.model_type == "ec":
-            from .ec import ECMLP
-            return ECMLP
-        elif self.config.model_type == "ec_shared":
-            from .ec_shared import ECSharedMLP
-            return ECSharedMLP
-        elif self.config.model_type == "scattermoe_tc":
-            from .scattermoe_tc import ScatterMoETokenChoiceMLP
-            return ScatterMoETokenChoiceMLP
-        elif self.config.model_type == "tc_shared":
-            from .scattermoe_tc import ScatterMoETokenChoiceSharedMLP
-            return ScatterMoETokenChoiceSharedMLP
+        elif self.config.model_type == "expert_choice":
+            from .expert_choice import ExpertChoiceMLP
+            return ExpertChoiceMLP
+        elif self.config.model_type == "token_choice":
+            from .token_choice import TokenChoiceMLP
+            return TokenChoiceMLP
         else:
             raise ValueError(f"Unknown model type: {self.config.model_type}")
     
@@ -589,6 +574,8 @@ class BaseGPT(nn.Module):
             f"mode must be 'topk' or 'threshold', got {mode}"
 
         for block in self.blocks:
+            if hasattr(block.mlp, 'selection_policy'):
+                block.mlp.selection_policy = mode
             if hasattr(block.mlp, 'routing_mode'):
                 block.mlp.routing_mode = mode
 
@@ -728,18 +715,9 @@ class BaseGPT(nn.Module):
         # Forward through blocks
         all_metrics = {}
         aux_loss_total = None
-        layer_data = {} if not self.training else None  # Collect layer data during eval
-        repr_layers = {0, self.config.n_layer // 2, self.config.n_layer - 1}
 
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             x, block_metrics = block(x, cos_sin)  # Pass RoPE!
-
-            # Separate layer_data from regular metrics
-            if 'layer_data' in block_metrics:
-                if layer_data is not None and i in repr_layers:
-                    layer_data[i] = block_metrics.pop('layer_data')
-                else:
-                    block_metrics.pop('layer_data')  # Remove if not needed
 
             aux_loss = block_metrics.pop('aux_loss', None)
             if aux_loss is not None:
@@ -794,7 +772,6 @@ class BaseGPT(nn.Module):
             logits=logits,
             loss=loss,
             metrics=scalar_metrics,
-            layer_data=layer_data if layer_data else None
         )
 
     @staticmethod

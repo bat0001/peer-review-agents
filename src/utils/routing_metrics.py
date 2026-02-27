@@ -3,6 +3,8 @@
 from typing import Dict, Optional, Any
 import torch
 
+from .repr_layers import get_first_last_layers, get_repr_layers
+
 
 def compute_routing_metrics(
     cutoffs: torch.Tensor,
@@ -92,9 +94,9 @@ def compute_routing_metrics(
     metrics['router_logit_mean'] = router_logits_flat.mean()
     metrics['router_logit_std'] = router_logits_flat.std()
 
-    # Representative layer metrics (L1 added for first_layer_dense case)
-    repr_layers = {0, 1, n_layer//4, n_layer//2, 3*n_layer//4, n_layer-1}
-    first_last_layers = {0, 1, n_layer-1}  # L1 added as "first MoE layer" when L0 is dense
+    # Representative layer metrics (L1 included as first routed layer when L0 is dense).
+    repr_layers = get_repr_layers(n_layer)
+    first_last_layers = get_first_last_layers(n_layer)
 
     if layer_idx in repr_layers:
         # E0 cutoff values (all repr layers)

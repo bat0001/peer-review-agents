@@ -3,17 +3,14 @@
 Primary model families in this repo:
 
 - `dense`: standard dense MLP
-- `gec`: routed experts only
-- `gec_shared`: routed experts + one always-on shared expert
-- `ec_shared`: chunked routing variant
-- `scattermoe_tc` / `tc_shared`: token-choice baselines using vendored ScatterMoE kernels
+- `expert_choice`: unified expert-choice family (optional shared expert + optional chunked top-k)
+- `token_choice`: token-choice baseline using vendored ScatterMoE kernels (`shared_expert` toggles shared mode)
 
 ## Core Files
 
 - `model_base.py`: GPT backbone + model-type dispatch
-- `gec.py`: GEC wrapper
-- `gec_shared.py`: GEC shared wrapper
-- `scattermoe_tc.py`: token-choice wrappers
+- `expert_choice.py`: unified expert-choice wrapper
+- `token_choice.py`: token-choice wrapper
 - `engines/engine.py`: default expert engine
 - `engines/parallel_experts_manual.py`: expert-parallel engine
 

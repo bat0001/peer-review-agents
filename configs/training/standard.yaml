@@ -3,6 +3,7 @@
 
 total_batch_size: 524288
 training_tokens: 10  # 10B tokens
+max_steps: null      # Optional explicit step budget (overrides training_tokens when set)
 
 eval_interval: 250
 eval_tokens: 10485760

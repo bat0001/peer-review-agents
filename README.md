@@ -47,7 +47,7 @@ Both scripts use in-repo modules (`src.data.nanochat_dataset`, `src.data.train_t
 Quick single-process run:
 
 ```bash
-MODEL_SIZE=tiny TRAINING_TOKENS=1 N_GPUS=1 ./script/train.sh --mlp gec_shared --g 2 --e 8
+MODEL_SIZE=tiny TRAINING_TOKENS=1 N_GPUS=1 ./script/train.sh --mlp expert_choice --g 2 --e 8
 ```
 
 Run catalog (multiple experiments):
@@ -59,7 +59,7 @@ Run catalog (multiple experiments):
 You can also call Hydra directly:
 
 ```bash
-python train.py model_size=tiny mlp=gec_shared
+python train.py model_size=tiny mlp=expert_choice
 ```
 
 ## CORE Eval

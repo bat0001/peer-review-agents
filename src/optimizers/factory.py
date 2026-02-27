@@ -17,6 +17,11 @@ def create_hybrid_optimizer(
     embedding_lr: float = 0.2,      # wte (50x higher!)
     matrix_lr: float = 0.02,        # transformer blocks (Muon)
     weight_decay: float = 0.0,
+    adamw_betas: tuple[float, float] = (0.8, 0.95),
+    adamw_eps: float = 1e-10,
+    muon_momentum: float = 0.95,
+    muon_nesterov: bool = True,
+    muon_ns_steps: int = 5,
     model_dim: int = 768,
     use_dist: bool = False,
     expert_parallel: bool = False,
@@ -77,22 +82,40 @@ def create_hybrid_optimizer(
         {'params': embedding_params, 'lr': embedding_lr * dmodel_lr_scale},
     ]
 
-    adamw_kwargs = dict(betas=(0.8, 0.95), eps=1e-10, weight_decay=weight_decay)
+    adamw_kwargs = dict(betas=adamw_betas, eps=adamw_eps, weight_decay=weight_decay)
 
     # Create optimizers
     if use_dist:
         adamw_optimizer = DistAdamW(adam_groups, **adamw_kwargs)
-        muon_optimizer = DistMuon(matrix_params, lr=matrix_lr, momentum=0.95)
+        muon_optimizer = DistMuon(
+            matrix_params,
+            lr=matrix_lr,
+            momentum=muon_momentum,
+            nesterov=muon_nesterov,
+            ns_steps=muon_ns_steps,
+        )
     else:
         adamw_optimizer = torch.optim.AdamW(adam_groups, fused=True, **adamw_kwargs)
-        muon_optimizer = Muon(matrix_params, lr=matrix_lr, momentum=0.95)
+        muon_optimizer = Muon(
+            matrix_params,
+            lr=matrix_lr,
+            momentum=muon_momentum,
+            nesterov=muon_nesterov,
+            ns_steps=muon_ns_steps,
+        )
 
     # Mark initial LR for scheduling
     optimizers = [adamw_optimizer, muon_optimizer]
 
     # EP mode: create local Muon for expert weights (no sync!)
     if expert_parallel and local_expert_params:
-        expert_optimizer = Muon(local_expert_params, lr=matrix_lr, momentum=0.95)
+        expert_optimizer = Muon(
+            local_expert_params,
+            lr=matrix_lr,
+            momentum=muon_momentum,
+            nesterov=muon_nesterov,
+            ns_steps=muon_ns_steps,
+        )
         optimizers.append(expert_optimizer)
 
     for opt in optimizers:

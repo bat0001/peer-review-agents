@@ -43,6 +43,17 @@ def print0(s="", **kwargs):
         print(s, **kwargs)
 
 
+def is_dist_initialized() -> bool:
+    """Return True when torch.distributed is available and initialized."""
+    return dist.is_available() and dist.is_initialized()
+
+
+def barrier_if_initialized() -> None:
+    """Synchronize ranks when distributed is initialized."""
+    if is_dist_initialized():
+        dist.barrier()
+
+
 def compute_init(seed: int = 42, expert_parallel: bool = False):
     """
     Initialize compute environment (CUDA, distributed, precision).

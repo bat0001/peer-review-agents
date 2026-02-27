@@ -15,7 +15,7 @@ class TrainingConfig:
     # Batch settings
     total_batch_size: int = 65536  # Total batch size in tokens
     per_device_batch_size: int = 8  # Samples per device
-    sequence_length: int = 1024
+    sequence_length: int = 2048
     # gradient_accumulation_steps is now calculated automatically
 
     # Training length (priority: max_steps > training_tokens)
@@ -136,6 +136,29 @@ class EvalConfig:
 
 
 @dataclass
+class OptimizerConfig:
+    """Optimizer and schedule configuration."""
+    unembedding_lr: float = 0.004
+    embedding_lr: float = 0.2
+    matrix_lr: float = 0.02
+    weight_decay: float = 0.0
+
+    warmup_ratio: float = 0.0
+    warmdown_ratio: float = 0.2
+    final_lr_frac: float = 0.0
+
+    adamw_betas: List[float] = field(default_factory=lambda: [0.8, 0.95])
+    adamw_eps: float = 1e-10
+
+    muon_momentum: float = 0.95
+    muon_nesterov: bool = True
+    muon_ns_steps: int = 5
+    muon_momentum_warmup_steps: int = 300
+    muon_momentum_start: float = 0.85
+    muon_momentum_end: float = 0.95
+
+
+@dataclass
 class Config:
     """Main configuration combining all components."""
     # Model settings (defined in model_base.py)
@@ -150,8 +173,8 @@ class Config:
     # Logging settings
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
-    # Optimizer settings (NEW: nanochat-style hybrid optimizer)
-    optimizer: Dict[str, Any] = field(default_factory=dict)
+    # Optimizer settings
+    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
 
     # Eval settings
     eval: EvalConfig = field(default_factory=EvalConfig)
@@ -162,7 +185,7 @@ class Config:
 
     # Metadata (for Hydra config groups)
     model_size_name: Optional[str] = None  # tiny, medium, large, etc.
-    mlp_type_name: Optional[str] = None    # dense, gec, gec_shared, ec
+    mlp_type_name: Optional[str] = None    # dense, expert_choice, token_choice
     
     @classmethod
     def from_file(cls, path: str) -> "Config":
@@ -202,7 +225,7 @@ class Config:
         training_cfg = data.pop("training", {})
         data_cfg = data.pop("data", {})
         logging_cfg = data.pop("logging", {})
-        optimizer_cfg = data.pop("optimizer", {})  # NEW: optimizer config
+        optimizer_cfg = data.pop("optimizer", {})
         eval_cfg = data.pop("eval", {})
 
         # Filter out Hydra-specific metadata that shouldn't be passed to dataclass
@@ -219,6 +242,11 @@ class Config:
         training = TrainingConfig(**training_cfg)
         data_config = DataConfig(**data_cfg)
         logging = LoggingConfig(**logging_cfg)
+        optimizer = (
+            optimizer_cfg
+            if isinstance(optimizer_cfg, OptimizerConfig)
+            else OptimizerConfig(**optimizer_cfg)
+        )
         eval_config = EvalConfig(**eval_cfg)
 
         # Create main config
@@ -227,7 +255,7 @@ class Config:
             training=training,
             data=data_config,
             logging=logging,
-            optimizer=optimizer_cfg,  # NEW: optimizer config
+            optimizer=optimizer,
             eval=eval_config,
             **data
         )
@@ -241,23 +269,44 @@ class Config:
             "training": asdict(self.training),
             "data": asdict(self.data),
             "logging": asdict(self.logging),
-            "optimizer": self.optimizer,  # NEW: optimizer config
+            "optimizer": asdict(self.optimizer),
             "eval": asdict(self.eval),
         })
         return result
     
     def validate(self) -> None:
         """Validate configuration."""
-        # Model validation (normalize aliases)
+        # Model validation
         model_type = self.model.get("model_type")
-        if model_type == "tc":
-            model_type = "scattermoe_tc"
-            self.model["model_type"] = model_type
+        if model_type is None:
+            raise ValueError("model.model_type must be specified")
 
-        assert model_type in ["dense", "gec", "gec_shared", "gec_shared_capacity", "ec", "ec_shared", "scattermoe_tc", "tc_shared"], \
+        assert model_type in ["dense", "expert_choice", "token_choice"], \
             f"Invalid model type: {model_type}"
-        if self.model.get("expert_parallel", False) and model_type not in ["gec", "gec_shared"]:
-            raise ValueError("expert_parallel is only supported for model_type in ['gec', 'gec_shared']")
+        if model_type == "expert_choice":
+            if "selection_policy" not in self.model and "routing_mode" in self.model:
+                self.model["selection_policy"] = self.model["routing_mode"]
+            if "routing_mode" not in self.model and "selection_policy" in self.model:
+                self.model["routing_mode"] = self.model["selection_policy"]
+
+            selection_policy = self.model.get("selection_policy", "topk")
+            if selection_policy not in ["topk", "threshold"]:
+                raise ValueError(
+                    f"selection_policy must be one of ['topk', 'threshold'], got {selection_policy}"
+                )
+            self.model["selection_policy"] = selection_policy
+            self.model["routing_mode"] = selection_policy
+            self.model.setdefault("shared_expert", False)
+        elif model_type == "token_choice":
+            self.model.setdefault("shared_expert", False)
+
+        if self.model.get("expert_parallel", False):
+            if model_type != "expert_choice":
+                raise ValueError("expert_parallel is only supported for model_type='expert_choice'")
+            if self.model.get("routing_chunk_seqs") is not None:
+                raise ValueError(
+                    "expert_parallel with routing_chunk_seqs is not supported in this release"
+                )
         
         # Router activation validation (if specified)
         if "router_activation" in self.model:
@@ -265,10 +314,14 @@ class Config:
                 f"Invalid router_activation: {self.model.get('router_activation')}"
             model_type = self.model.get("model_type")
             router_activation = self.model.get("router_activation")
-            if model_type in ["scattermoe_tc", "tc_shared"] and router_activation == "softmax_k":
+            if model_type == "token_choice" and router_activation == "softmax_k":
                 raise ValueError("router_activation='softmax_k' is not allowed for token-choice routing")
-            if model_type == "tc_shared" and router_activation == "softmax_e_shared_out":
-                raise ValueError("router_activation='softmax_e_shared_out' is not allowed for tc_shared")
+            if (
+                model_type == "token_choice"
+                and not bool(self.model.get("shared_expert", False))
+                and router_activation == "softmax_e_shared_out"
+            ):
+                raise ValueError("router_activation='softmax_e_shared_out' requires model.shared_expert=true")
 
         if "load_balance_method" in self.model:
             assert self.model.get("load_balance_method") in ["none", "aux", "aux_error", "deepseek"], \
@@ -281,11 +334,11 @@ class Config:
 
         # Threshold warmup/EMA validation:
         # Only enforced for threshold-capable routed expert-choice models.
-        threshold_capable_models = {"gec", "gec_shared", "gec_shared_capacity", "ec_shared"}
+        threshold_capable_models = {"expert_choice"}
         if model_type in threshold_capable_models:
             ema_start_steps = self.training.ema_start_steps
             threshold_warmup_steps = self.training.threshold_warmup_steps
-            routing_mode = self.model.get("routing_mode", "topk")
+            selection_policy = self.model.get("selection_policy", "topk")
 
             if ema_start_steps < 0:
                 raise ValueError(
@@ -296,10 +349,10 @@ class Config:
                     "training.threshold_warmup_steps must be -1 (disabled) or >= 0, "
                     f"got {threshold_warmup_steps}"
                 )
-            if threshold_warmup_steps >= 0 and routing_mode != "topk":
+            if threshold_warmup_steps >= 0 and selection_policy != "topk":
                 raise ValueError(
-                    "training.threshold_warmup_steps requires model.routing_mode='topk' "
-                    f"at startup, got routing_mode='{routing_mode}'"
+                    "training.threshold_warmup_steps requires model.selection_policy='topk' "
+                    f"at startup, got selection_policy='{selection_policy}'"
                 )
             if threshold_warmup_steps >= 0 and ema_start_steps > threshold_warmup_steps:
                 raise ValueError(
@@ -411,6 +464,7 @@ def register_configs() -> None:
     cs.store(group="schema/training", name="base", node=TrainingConfig)
     cs.store(group="schema/data", name="base", node=DataConfig)
     cs.store(group="schema/logging", name="base", node=LoggingConfig)
+    cs.store(group="schema/optimizer", name="base", node=OptimizerConfig)
     cs.store(group="schema/eval", name="base", node=EvalConfig)
 
 

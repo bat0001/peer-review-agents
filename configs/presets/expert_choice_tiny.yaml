@@ -1,0 +1,14 @@
+# @package _global_
+# Preset: Expert-choice Tiny configuration
+# Convenient preset for ablation studies
+# Usage: python train.py --config-name=presets/expert_choice_tiny model.router_activation=relu
+
+defaults:
+  - /model_size: tiny
+  - /mlp: expert_choice
+  - /training: quick
+  - /experiment: ablation_router
+  - _self_
+
+experiment_name: "ablation-router-${model.router_activation}-${model_size_name}"
+output_dir: "./outputs/${experiment_name}"
