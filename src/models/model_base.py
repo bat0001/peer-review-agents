@@ -47,20 +47,20 @@ class ModelConfig:
     n_embd: int = 768
 
     # Model variant
-    model_type: str = "dense"  # dense, expert_choice, token_choice
+    model_type: str = "dense"  # dense, expert_threshold, token_choice
     first_layer_dense: bool = False  # Use dense MLP for layer 0 (no routing)
 
-    # MoE/GEC parameters (new paper notation)
+    # MoE/ET parameters (new paper notation)
     granularity: int = 2       # G: ratio of FFN dim to expert dim (dff / dexpert), must be power of 2
     expansion: int = 4         # E: expansion rate (total params / dense params)
 
-    # Expert-choice variant axes
-    shared_expert: bool = False  # expert_choice and token_choice
+    # Routed-expert variant axes
+    shared_expert: bool = False  # expert_threshold and token_choice
 
     # Routing configuration
     routing_chunk_seqs: Optional[int] = None  # Number of sequences per routing chunk (None=global)
     router_activation: str = "sigmoid"  # Router activation: sigmoid, relu, softmax_k, softmax_e, softmax_e_shared_out
-    selection_policy: str = "topk"  # topk (EC-style) or threshold (GEC-style)
+    selection_policy: str = "topk"  # topk (EC-style) or threshold (ET-style)
     routing_mode: Optional[str] = None  # Deprecated alias for selection_policy
     threshold_warmup_steps: int = -1  # Passed from training config; -1 = disabled, >=0 = switch at step N
     expert_capacity_factor: float = -1.0  # Capacity bounds: [k×(1-cap), k×(1+cap)] for threshold routing (-1=disabled)
@@ -78,7 +78,7 @@ class ModelConfig:
     # Derived parameters (computed in __post_init__)
     n_experts: Optional[int] = None       # Computed as G × E
     expert_dim: Optional[int] = None      # Computed as (4 × n_embd) / G
-    shared_expert_dim: Optional[int] = None  # For GEC shared expert, default to expert_dim
+    shared_expert_dim: Optional[int] = None  # For ET shared expert, default to expert_dim
     selection_rate: Optional[float] = None  # Computed for compute-matching (or can override)
 
     # Legacy parameters (for backward compatibility)
@@ -89,7 +89,7 @@ class ModelConfig:
 
     def __post_init__(self):
         # Validate model type
-        assert self.model_type in ["dense", "expert_choice", "token_choice"], \
+        assert self.model_type in ["dense", "expert_threshold", "token_choice"], \
             f"Unsupported model_type: {self.model_type}"
 
         # Normalize routing policy aliases.
@@ -98,7 +98,7 @@ class ModelConfig:
         self.routing_mode = self.selection_policy
 
         # Validate router activation
-        if self.model_type in ["expert_choice", "token_choice"]:
+        if self.model_type in ["expert_threshold", "token_choice"]:
             assert self.router_activation in ["sigmoid", "relu", "softmax_k", "softmax_e", "softmax_e_shared_out"], \
                 f"router_activation must be one of [sigmoid, relu, softmax_k, softmax_e, softmax_e_shared_out], got {self.router_activation}"
             if self.model_type == "token_choice":
@@ -121,11 +121,11 @@ class ModelConfig:
             )
 
         # Validate granularity is a power of 2 (for integer expert_dim)
-        if self.model_type in ["expert_choice", "token_choice"]:
+        if self.model_type in ["expert_threshold", "token_choice"]:
             G = self.granularity
             assert G > 0 and (G & (G - 1)) == 0, \
                 f"granularity must be a power of 2, got {G}"
-            if self.model_type in {"expert_choice", "token_choice"} and self.shared_expert:
+            if self.model_type in {"expert_threshold", "token_choice"} and self.shared_expert:
                 assert G >= 2, \
                     f"{self.model_type} requires granularity >= 2 (need routed experts), got {G}"
 
@@ -148,8 +148,8 @@ class ModelConfig:
             pass  # Keep the provided values
         else:
             # New notation: derive from G and E
-            # expert_choice/token_choice: n_experts = G × E (+1 when shared expert is enabled)
-            if self.model_type in {"expert_choice", "token_choice"} and self.shared_expert:
+            # expert_threshold/token_choice: n_experts = G × E (+1 when shared expert is enabled)
+            if self.model_type in {"expert_threshold", "token_choice"} and self.shared_expert:
                 self.n_experts = int(self.granularity * self.expansion) + 1
             else:
                 self.n_experts = int(self.granularity * self.expansion)
@@ -340,7 +340,7 @@ class BaseGPT(nn.Module):
         print(f"Model initialized with {n_params:,} parameters")
 
         # Report MoE configuration if applicable
-        if config.model_type in ["expert_choice", "token_choice"]:
+        if config.model_type in ["expert_threshold", "token_choice"]:
             print(f"  MoE Config: G={config.granularity}, E={config.expansion}")
             print(f"  → n_experts={config.n_experts}, expert_dim={config.expert_dim}")
             if config.model_type == "token_choice":
@@ -350,7 +350,7 @@ class BaseGPT(nn.Module):
                     print(f"  → 1 shared expert (always active, dim={config.shared_expert_dim})")
                 else:
                     print(f"  → Token selection: top_k = {config.n_experts // config.expansion} (token-choice)")
-            elif config.model_type == "expert_choice" and config.shared_expert:
+            elif config.model_type == "expert_threshold" and config.shared_expert:
                 n_routed = config.n_experts - 1
                 print(f"  → {n_routed} routed experts + 1 shared expert (dim={config.shared_expert_dim})")
                 chunk_info = f"routing_chunk_seqs={config.routing_chunk_seqs}" if config.routing_chunk_seqs is not None else "global routing"
@@ -364,9 +364,9 @@ class BaseGPT(nn.Module):
         """Get the appropriate MLP class based on config."""
         if self.config.model_type == "dense":
             return DenseMLP
-        elif self.config.model_type == "expert_choice":
-            from .expert_choice import ExpertChoiceMLP
-            return ExpertChoiceMLP
+        elif self.config.model_type == "expert_threshold":
+            from .expert_threshold_choice import ExpertThresholdChoiceMLP
+            return ExpertThresholdChoiceMLP
         elif self.config.model_type == "token_choice":
             from .token_choice import TokenChoiceMLP
             return TokenChoiceMLP

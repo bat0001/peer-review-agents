@@ -1,0 +1,18 @@
+# @package _global_
+# EC config without a shared expert
+
+model:
+  model_type: expert_threshold
+  shared_expert: false
+
+  # Expert configuration
+  granularity: 2
+  expansion: 8
+
+  # Routing settings
+  selection_policy: topk
+  router_activation: sigmoid
+  routing_chunk_seqs: null
+
+# Metadata for experiment naming
+mlp_type_name: ec_no_shared

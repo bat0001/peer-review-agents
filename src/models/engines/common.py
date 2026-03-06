@@ -1,4 +1,4 @@
-"""Shared engine utilities for expert-choice backends."""
+"""Shared engine utilities for routed expert-threshold backends."""
 
 from typing import Dict, List, Optional
 

@@ -1,0 +1,22 @@
+# @package _global_
+# ET config: threshold routing with implied EC warmup
+
+model:
+  model_type: expert_threshold
+  shared_expert: true
+
+  # Expert configuration
+  granularity: 2
+  expansion: 8
+
+  # Routing settings
+  selection_policy: topk
+  router_activation: sigmoid
+  routing_chunk_seqs: null
+
+training:
+  ema_start_steps: 0
+  threshold_warmup_steps: 4000
+
+# Metadata for experiment naming
+mlp_type_name: et

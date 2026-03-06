@@ -1,4 +1,4 @@
-"""Expert computation engine for GEC.
+"""Expert computation engine for ET.
 
 Provides ExpertEngine which handles routed expert computation
 and returns pre-scatter outputs (h_flat, indices, metrics).

@@ -1,0 +1,12 @@
+# @package _global_
+# Preset: ET tiny configuration
+# Usage: python train.py --config-name=presets/et_tiny
+
+defaults:
+  - /model_size: tiny
+  - /mlp: et
+  - /training: standard
+  - _self_
+
+experiment_name: "et-tiny"
+output_dir: "./outputs/${experiment_name}"

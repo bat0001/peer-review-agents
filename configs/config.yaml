@@ -1,13 +1,13 @@
-# Base Hydra configuration for expert-choice training
+# Base Hydra configuration for expert-threshold training
 # Use config groups to compose: model_size, mlp type, experiment settings
 
 defaults:
-  - _self_                         # This config provides base defaults
-  - model_size: tiny               # Default to tiny (micro/tiny/medium/large)
-  - mlp: expert_choice             # Canonical expert-choice default
-  - optimizer: nanochat            # Default to nanochat optimizer (NEW!)
-  - training: standard             # Default to standard training
-  - eval: core                     # CORE eval defaults
+  - _self_
+  - model_size: tiny
+  - mlp: et
+  - optimizer: nanochat
+  - training: standard
+  - eval: core
 
 # Experiment metadata
 experiment_name: "${mlp_type_name}-${model_size_name}-${now:%Y%m%d-%H%M%S}"
@@ -36,11 +36,10 @@ data:
 training:
   sequence_length: 2048
   per_device_batch_size: 16 # A5000 has 24GB memory. For H100, use 64.
-  # training/ group adds: total_batch_size, training_tokens, eval_interval, etc.
 
   grad_clip: 1.0
-  ema_start_steps: 0         # >=0 = start applying cutoff EMA updates at step N
-  threshold_warmup_steps: -1  # -1 = disabled, >=0 = switch to threshold at step N
+  ema_start_steps: 0
+  threshold_warmup_steps: -1
 
   compile_model: true
   mixed_precision: true
@@ -49,6 +48,6 @@ training:
 # Logging settings
 logging:
   use_wandb: true
-  wandb_project: "expert-choice-experiments"
+  wandb_project: "expert-threshold-experiments"
   wandb_entity: null
   log_interval: 10

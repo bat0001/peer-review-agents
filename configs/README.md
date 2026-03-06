@@ -6,7 +6,7 @@ Hydra config tree for training/eval.
 
 - `config.yaml`: base defaults
 - `model_size/`: model scale presets
-- `mlp/`: architecture type (`dense`, `expert_choice`, `token_choice`)
+- `mlp/`: architecture type (`dense`, `ec`, `et`, `token_choice`)
 - `optimizer/`: optimizer presets
 - `training/`: training schedule presets
 - `experiment/`: small override bundles (for example `debug`)
@@ -20,13 +20,15 @@ Hydra config tree for training/eval.
 python train.py
 
 # explicit groups
-python train.py model_size=tiny mlp=expert_choice
+python train.py model_size=tiny mlp=ec
+python train.py model_size=tiny mlp=et
 
 # with experiment override
 python train.py +experiment=debug
 
 # preset
-python train.py --config-name=presets/expert_choice_tiny
+python train.py --config-name=presets/ec_tiny
+python train.py --config-name=presets/et_tiny
 ```
 
 ## Override Rules
@@ -77,3 +79,4 @@ WANDB_MODE=offline CUDA_VISIBLE_DEVICES=0 python train.py \
 - `data.data_path` defaults to `${oc.env:NANOCHAT_BASE_DIR}/base_data`.
 - `data.tokenizer_dir` defaults to `${oc.env:NANOCHAT_BASE_DIR}/tokenizer`.
 - For shared servers, check `nvidia-smi` and pin a free GPU with `CUDA_VISIBLE_DEVICES`.
+- `et` uses EC top-k warmup before switching to threshold routing by default.

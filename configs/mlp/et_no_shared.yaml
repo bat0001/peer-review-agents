@@ -1,8 +1,8 @@
 # @package _global_
-# Canonical expert-choice config without shared expert
+# ET config without a shared expert
 
 model:
-  model_type: expert_choice
+  model_type: expert_threshold
   shared_expert: false
 
   # Expert configuration
@@ -14,5 +14,9 @@ model:
   router_activation: sigmoid
   routing_chunk_seqs: null
 
+training:
+  ema_start_steps: 0
+  threshold_warmup_steps: 4000
+
 # Metadata for experiment naming
-mlp_type_name: expert_choice_no_shared
+mlp_type_name: et_no_shared

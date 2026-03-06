@@ -40,10 +40,10 @@ done
 : "${TRAINING_TOKENS:?TRAINING_TOKENS must be set (via env var or SLURM)}"
 [[ "${MLP}" != "dense" ]] && : "${G:?G must be set for MoE models (via --g)}" "${E:?E must be set for MoE models (via --e)}"
 
-# EP is only supported for expert_choice family
-if [[ "${MLP}" != "expert_choice" ]]; then
+# EP is only supported for the unified expert-threshold family.
+if [[ "${MLP}" != "ec" && "${MLP}" != "et" ]]; then
     [[ -z "${NO_EP:-}" ]] && NO_EP=1
-    echo "EP disabled for mlp=${MLP} (only expert_choice family supports EP)."
+    echo "EP disabled for mlp=${MLP} (only ec/et support EP)."
 fi
 
 if [[ -n "${SHARED_EXPERT+x}" ]]; then
@@ -60,7 +60,7 @@ BLOCK_SIZE=2048
 
 # Auto-enable threshold routing if capacity factor is set
 if [[ -n "${CAPACITY_FACTOR:-}" && -z "${WARMUP_STEPS:-}" ]]; then
-    WARMUP_STEPS="0"  # Enable threshold from step 0
+    WARMUP_STEPS="0"
 fi
 
 # Build experiment name if not set
@@ -69,16 +69,15 @@ if [[ -z "${EXPERIMENT_NAME:-}" ]]; then
     [[ "${MLP}" != "dense" ]] && EXPERIMENT_NAME+="_G${G}E${E}"
     EXPERIMENT_NAME+="_${TRAINING_TOKENS}B"
 
-    # Add optional config suffixes
-    [[ -n "${CAPACITY_FACTOR:-}" ]]     && EXPERIMENT_NAME+="_cap${CAPACITY_FACTOR}"
+    [[ -n "${CAPACITY_FACTOR:-}" ]] && EXPERIMENT_NAME+="_cap${CAPACITY_FACTOR}"
     [[ -n "${LOAD_BALANCE_METHOD:-}" ]] && EXPERIMENT_NAME+="_${LOAD_BALANCE_METHOD}"
-    [[ -n "${DEEPSEEK_BIAS_LR:-}" ]]    && EXPERIMENT_NAME+="_dslr${DEEPSEEK_BIAS_LR}"
-    [[ -n "${AUX_LOSS_COEF:-}" ]]       && EXPERIMENT_NAME+="_aux${AUX_LOSS_COEF}"
-    [[ -n "${ROUTER_ACTIVATION:-}" ]]   && EXPERIMENT_NAME+="_${ROUTER_ACTIVATION}"
-    [[ -n "${ROUTING_CHUNK_SEQS:-}" ]]    && EXPERIMENT_NAME+="_chunk${ROUTING_CHUNK_SEQS}"
+    [[ -n "${DEEPSEEK_BIAS_LR:-}" ]] && EXPERIMENT_NAME+="_dslr${DEEPSEEK_BIAS_LR}"
+    [[ -n "${AUX_LOSS_COEF:-}" ]] && EXPERIMENT_NAME+="_aux${AUX_LOSS_COEF}"
+    [[ -n "${ROUTER_ACTIVATION:-}" ]] && EXPERIMENT_NAME+="_${ROUTER_ACTIVATION}"
+    [[ -n "${ROUTING_CHUNK_SEQS:-}" ]] && EXPERIMENT_NAME+="_chunk${ROUTING_CHUNK_SEQS}"
     [[ -n "${WARMUP_STEPS:-}" && "${WARMUP_STEPS}" != "-1" ]] && EXPERIMENT_NAME+="_warmup${WARMUP_STEPS}"
-    [[ -n "${EMA_START_STEPS:-}" ]]      && EXPERIMENT_NAME+="_ema${EMA_START_STEPS}"
-    [[ -n "${CUTOFF_EMA_ALPHA:-}" ]]    && EXPERIMENT_NAME+="_alpha${CUTOFF_EMA_ALPHA}"
+    [[ -n "${EMA_START_STEPS:-}" ]] && EXPERIMENT_NAME+="_ema${EMA_START_STEPS}"
+    [[ -n "${CUTOFF_EMA_ALPHA:-}" ]] && EXPERIMENT_NAME+="_alpha${CUTOFF_EMA_ALPHA}"
     [[ -z "${NO_EP:-}" ]] && EXPERIMENT_NAME+="_ep${N_GPUS}"
 fi
 
@@ -94,22 +93,21 @@ args=(
 
 [[ "${MLP}" != "dense" ]] && args+=("model.granularity=${G}" "model.expansion=${E}")
 
-# Optional args (use ++ to override if exists, add if doesn't)
-[[ -n "${TOTAL_BATCH_SIZE:-}" ]]    && args+=("training.total_batch_size=${TOTAL_BATCH_SIZE}")
-[[ -n "${MICRO_BATCH_SIZE:-}" ]]    && args+=("training.per_device_batch_size=${MICRO_BATCH_SIZE}")
-[[ -n "${ROUTING_CHUNK_SEQS:-}" ]]  && args+=("++model.routing_chunk_seqs=${ROUTING_CHUNK_SEQS}")
+[[ -n "${TOTAL_BATCH_SIZE:-}" ]] && args+=("training.total_batch_size=${TOTAL_BATCH_SIZE}")
+[[ -n "${MICRO_BATCH_SIZE:-}" ]] && args+=("training.per_device_batch_size=${MICRO_BATCH_SIZE}")
+[[ -n "${ROUTING_CHUNK_SEQS:-}" ]] && args+=("++model.routing_chunk_seqs=${ROUTING_CHUNK_SEQS}")
 [[ -n "${LOAD_BALANCE_METHOD:-}" ]] && args+=("++model.load_balance_method=${LOAD_BALANCE_METHOD}")
-[[ -n "${AUX_LOSS_COEF:-}" ]]       && args+=("++model.aux_loss_coef=${AUX_LOSS_COEF}")
-[[ -n "${DEEPSEEK_BIAS_LR:-}" ]]    && args+=("++model.deepseek_bias_lr=${DEEPSEEK_BIAS_LR}")
-[[ -n "${CAPACITY_FACTOR:-}" ]]     && args+=("++model.expert_capacity_factor=${CAPACITY_FACTOR}")
-[[ -n "${WARMUP_STEPS:-}" ]]        && args+=("++training.threshold_warmup_steps=${WARMUP_STEPS}")
-[[ -n "${EMA_START_STEPS:-}" ]]     && args+=("++training.ema_start_steps=${EMA_START_STEPS}")
-[[ -n "${ROUTER_ACTIVATION:-}" ]]   && args+=("++model.router_activation=${ROUTER_ACTIVATION}")
-[[ -n "${SHARED_EXPERT+x}" ]]       && args+=("++model.shared_expert=${SHARED_EXPERT_BOOL}")
-[[ -n "${CUTOFF_EMA_ALPHA:-}" ]]    && args+=("++model.cutoff_ema_alpha=${CUTOFF_EMA_ALPHA}")
-[[ -n "${EXPERIMENT:-}" ]]          && args+=("+experiment=${EXPERIMENT}")
-[[ -z "${NO_EP:-}" ]]               && args+=("model.expert_parallel=true")
-args+=("logging.wandb_project=nanochat-${MODEL_SIZE}")
+[[ -n "${AUX_LOSS_COEF:-}" ]] && args+=("++model.aux_loss_coef=${AUX_LOSS_COEF}")
+[[ -n "${DEEPSEEK_BIAS_LR:-}" ]] && args+=("++model.deepseek_bias_lr=${DEEPSEEK_BIAS_LR}")
+[[ -n "${CAPACITY_FACTOR:-}" ]] && args+=("++model.expert_capacity_factor=${CAPACITY_FACTOR}")
+[[ -n "${WARMUP_STEPS:-}" ]] && args+=("++training.threshold_warmup_steps=${WARMUP_STEPS}")
+[[ -n "${EMA_START_STEPS:-}" ]] && args+=("++training.ema_start_steps=${EMA_START_STEPS}")
+[[ -n "${ROUTER_ACTIVATION:-}" ]] && args+=("++model.router_activation=${ROUTER_ACTIVATION}")
+[[ -n "${SHARED_EXPERT+x}" ]] && args+=("++model.shared_expert=${SHARED_EXPERT_BOOL}")
+[[ -n "${CUTOFF_EMA_ALPHA:-}" ]] && args+=("++model.cutoff_ema_alpha=${CUTOFF_EMA_ALPHA}")
+[[ -n "${EXPERIMENT:-}" ]] && args+=("+experiment=${EXPERIMENT}")
+[[ -z "${NO_EP:-}" ]] && args+=("model.expert_parallel=true")
+args+=("logging.wandb_project=expert-threshold-${MODEL_SIZE}")
 
 # Run
 export CUDA_VISIBLE_DEVICES

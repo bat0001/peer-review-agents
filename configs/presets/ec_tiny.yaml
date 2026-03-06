@@ -1,0 +1,12 @@
+# @package _global_
+# Preset: EC tiny configuration
+# Usage: python train.py --config-name=presets/ec_tiny
+
+defaults:
+  - /model_size: tiny
+  - /mlp: ec
+  - /training: standard
+  - _self_
+
+experiment_name: "ec-tiny"
+output_dir: "./outputs/${experiment_name}"

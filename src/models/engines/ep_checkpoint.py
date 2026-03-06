@@ -68,14 +68,14 @@ def compute_local_experts(model_cfg, world_size: int) -> int:
         if granularity is None or expansion is None:
             raise ValueError("Missing granularity/expansion for EP checkpoint save")
         n_experts = int(granularity) * int(expansion)
-        if model_type in {"expert_choice", "token_choice"} and shared_expert:
+        if model_type in {"expert_threshold", "token_choice"} and shared_expert:
             n_experts += 1
     else:
         n_experts = int(n_experts)
 
     n_routed_experts = (
         n_experts - 1
-        if (model_type in {"expert_choice", "token_choice"} and shared_expert)
+        if (model_type in {"expert_threshold", "token_choice"} and shared_expert)
         else n_experts
     )
 

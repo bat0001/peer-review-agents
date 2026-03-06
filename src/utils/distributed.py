@@ -4,7 +4,7 @@ Distributed training utilities for multi-GPU runs without a DDP-wrapped model.
 Provenance:
 - Adapted from nanochat distributed training patterns:
   https://github.com/karpathy/nanochat
-- Modified for GEC expert-parallel initialization and cutoff-state synchronization.
+- Modified for ET expert-parallel initialization and cutoff-state synchronization.
 """
 
 import os

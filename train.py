@@ -66,7 +66,7 @@ def train(config, ddp, rank, world_size, device, expert_parallel: bool = False):
 
     model_config = ModelConfig(**config.model)
     model_config.threshold_warmup_steps = config.training.threshold_warmup_steps
-    threshold_capable_model = model_config.model_type in {"expert_choice"}
+    threshold_capable_model = model_config.model_type in {"expert_threshold"}
 
     with torch.device("meta"):
         model = BaseGPT(model_config)

@@ -1,4 +1,4 @@
-"""Unified expert-choice wrapper with policy-only routing variation."""
+"""Unified expert-threshold wrapper implementing EC and ET routing."""
 
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
@@ -26,8 +26,8 @@ class RoutePlan:
     metrics: Dict[str, Tensor]
 
 
-class ExpertChoiceMLP(BaseMLP):
-    """Expert-choice MLP with shared/non-shared and DP/EP backend axes."""
+class ExpertThresholdChoiceMLP(BaseMLP):
+    """Unified routed-expert MLP implementing EC top-k and ET threshold routing."""
 
     def __init__(self, config):
         super().__init__(config)

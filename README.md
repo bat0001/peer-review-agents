@@ -1,6 +1,6 @@
-# Global Expert Choice (GEC)
+# Expert Threshold (ET)
 
-Standalone training repo for dense, GEC, GEC-shared, and token-choice (ScatterMoE) GPT-style models.
+Standalone training repo for dense, EC, ET, and token-choice (ScatterMoE) GPT-style models.
 
 ## What Is Included
 
@@ -44,10 +44,16 @@ Both scripts use in-repo modules (`src.data.nanochat_dataset`, `src.data.train_t
 
 ## Train
 
-Quick single-process run:
+Quick single-process EC run:
 
 ```bash
-MODEL_SIZE=tiny TRAINING_TOKENS=1 N_GPUS=1 ./script/train.sh --mlp expert_choice --g 2 --e 8
+MODEL_SIZE=tiny TRAINING_TOKENS=1 N_GPUS=1 ./script/train.sh --mlp ec --g 2 --e 8
+```
+
+Threshold-oriented ET run with implied EC warmup:
+
+```bash
+MODEL_SIZE=tiny TRAINING_TOKENS=10 N_GPUS=1 ./script/train.sh --mlp et --g 2 --e 8
 ```
 
 Run catalog (multiple experiments):
@@ -59,7 +65,8 @@ Run catalog (multiple experiments):
 You can also call Hydra directly:
 
 ```bash
-python train.py model_size=tiny mlp=expert_choice
+python train.py model_size=tiny mlp=ec
+python train.py model_size=tiny mlp=et
 ```
 
 ## CORE Eval

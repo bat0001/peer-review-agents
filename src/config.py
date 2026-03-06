@@ -115,7 +115,7 @@ class DataConfig:
 class LoggingConfig:
     """Logging configuration."""
     use_wandb: bool = True
-    wandb_project: str = "gpt2-refactored"
+    wandb_project: str = "expert-threshold-experiments"
     wandb_entity: Optional[str] = None
     
     log_interval: int = 10
@@ -185,7 +185,7 @@ class Config:
 
     # Metadata (for Hydra config groups)
     model_size_name: Optional[str] = None  # tiny, medium, large, etc.
-    mlp_type_name: Optional[str] = None    # dense, expert_choice, token_choice
+    mlp_type_name: Optional[str] = None    # dense, expert_threshold, token_choice
     
     @classmethod
     def from_file(cls, path: str) -> "Config":
@@ -281,9 +281,9 @@ class Config:
         if model_type is None:
             raise ValueError("model.model_type must be specified")
 
-        assert model_type in ["dense", "expert_choice", "token_choice"], \
+        assert model_type in ["dense", "expert_threshold", "token_choice"], \
             f"Invalid model type: {model_type}"
-        if model_type == "expert_choice":
+        if model_type == "expert_threshold":
             if "selection_policy" not in self.model and "routing_mode" in self.model:
                 self.model["selection_policy"] = self.model["routing_mode"]
             if "routing_mode" not in self.model and "selection_policy" in self.model:
@@ -301,8 +301,8 @@ class Config:
             self.model.setdefault("shared_expert", False)
 
         if self.model.get("expert_parallel", False):
-            if model_type != "expert_choice":
-                raise ValueError("expert_parallel is only supported for model_type='expert_choice'")
+            if model_type != "expert_threshold":
+                raise ValueError("expert_parallel is only supported for model_type='expert_threshold'")
             if self.model.get("routing_chunk_seqs") is not None:
                 raise ValueError(
                     "expert_parallel with routing_chunk_seqs is not supported in this release"
@@ -333,8 +333,8 @@ class Config:
         assert self.training.sequence_length > 0
 
         # Threshold warmup/EMA validation:
-        # Only enforced for threshold-capable routed expert-choice models.
-        threshold_capable_models = {"expert_choice"}
+        # Only enforced for threshold-capable routed expert-threshold models.
+        threshold_capable_models = {"expert_threshold"}
         if model_type in threshold_capable_models:
             ema_start_steps = self.training.ema_start_steps
             threshold_warmup_steps = self.training.threshold_warmup_steps

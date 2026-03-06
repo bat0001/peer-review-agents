@@ -1,4 +1,4 @@
-# Global Expert Choice: Autoregressive Language Modeling with Dynamic Computation Allocation and Perfect Load Balancing
+# Expert Threshold: Autoregressive Language Modeling with Dynamic Computation Allocation and Perfect Load Balancing
 
 **Ryan Sun**¹ **Yixin Liu**¹ **Yonghui Wu**² **Lichao Sun**¹
 
@@ -12,7 +12,7 @@
 
 ## Abstract
 
-Token-choice Mixture of Experts (TC-MoE) routes each token to a fixed number of experts, limiting dynamic computation allocation and suffering from load imbalance. Expert Choice (EC) solves the issues by having each expert select its top tokens within a batch. However, EC breaks causality, making it unsuitable for autoregressive language modeling. To tackle these problems, we propose **Global Expert Choice (GEC)**. Compared to EC, we extend the routing pool from the local batch to the global token distribution by maintaining an exponential moving average (EMA) of each expert's selection threshold. At both training and inference time, each token is independently routed based on whether its routing score exceeds this threshold—eliminating dependence on future tokens and minimizing train-inference mismatch. In pretraining experiments scaling to 2.4B parameters on FineWeb-Edu, GEC achieves 0.067 lower cross-entropy loss than TC-MoE.
+Token-choice Mixture of Experts (TC-MoE) routes each token to a fixed number of experts, limiting dynamic computation allocation and suffering from load imbalance. Expert Choice (EC) solves the issues by having each expert select its top tokens within a batch. However, EC breaks causality, making it unsuitable for autoregressive language modeling. To tackle these problems, we propose **Expert Threshold (ET)**. Compared to EC, we extend the routing pool from the local batch to the global token distribution by maintaining an exponential moving average (EMA) of each expert's selection threshold. At both training and inference time, each token is independently routed based on whether its routing score exceeds this threshold—eliminating dependence on future tokens and minimizing train-inference mismatch. In pretraining experiments scaling to 2.4B parameters on FineWeb-Edu, ET achieves 0.067 lower cross-entropy loss than TC-MoE.
 
 ---
 
@@ -26,9 +26,9 @@ Token Choice Mixture of Experts architectures (TC-MoE) (Shazeer et al., 2017; Le
 
 **Expert Choice (EC)** (Zhou et al., 2022) takes a different approach: instead of enforcing sparsity, EC removes the sparsity constraint entirely and enforces only load balancing—each expert selects its top-$k$ tokens from the batch (Section 2). Since every expert processes exactly $k$ tokens, EC achieves perfect load balance by construction. Moreover, because a token may be selected by multiple experts (or none), EC naturally enables dynamic computation allocation. EC has been successfully applied to diffusion (Sun et al., 2024; Shi et al., 2025) and multimodal architectures (Lin et al., 2024; Zong et al., 2024). However, EC violates causality: selecting the top-$k$ tokens requires comparing against all tokens in the batch—including future tokens unavailable during autoregressive generation. Extending EC to batch-level top-$k$ (Ludziejewski et al., 2024) partially alleviates this but does not fully restore causality, as routing still depends on batch composition.
 
-We observe that load balancing fundamentally only needs to hold in expectation over the data distribution, not exactly within each batch. As long as experts receive balanced workloads on average, hardware utilization remains efficient and no expert is systematically over- or under-utilized. This insight motivates **Global Expert Choice (GEC)**, which relaxes the per-batch load balancing constraint to a stochastic expectation. Instead of selecting top-$k$ tokens within each batch, GEC maintains an exponential moving average (EMA) of the batch-level top-$k$ cutoff as an estimate of the population-level threshold. At both training and inference, a token independently activates an expert if its routing score exceeds this threshold. Since the threshold depends only on past data, routing becomes fully causal with no train-inference mismatch. Moreover, our EMA mechanism can enable causal inference for existing EC models without retraining.
+We observe that load balancing fundamentally only needs to hold in expectation over the data distribution, not exactly within each batch. As long as experts receive balanced workloads on average, hardware utilization remains efficient and no expert is systematically over- or under-utilized. This insight motivates **Expert Threshold (ET)**, which relaxes the per-batch load balancing constraint to a stochastic expectation. Instead of selecting top-$k$ tokens within each batch, ET maintains an exponential moving average (EMA) of the batch-level top-$k$ cutoff as an estimate of the population-level threshold. At both training and inference, a token independently activates an expert if its routing score exceeds this threshold. Since the threshold depends only on past data, routing becomes fully causal with no train-inference mismatch. Moreover, our EMA mechanism can enable causal inference for existing EC models without retraining.
 
-Pretraining a 2.4B (0.56B active) language model on FineWeb-Edu, GEC outperforms TC by 0.067 in cross-entropy loss while achieving near-perfect load balancing. We further show that EC's performance improves with batch size, and that models trained with large-batch EC can perform causal inference using our threshold-based routing without retraining.
+Pretraining a 2.4B (0.56B active) language model on FineWeb-Edu, ET outperforms TC by 0.067 in cross-entropy loss while achieving near-perfect load balancing. We further show that EC's performance improves with batch size, and that models trained with large-batch EC can perform causal inference using our threshold-based routing without retraining.
 
 ---
 
@@ -75,9 +75,9 @@ with closed-form solution $z_{t,i} = \mathbb{1}\{t \in \text{Top}_k(\mathbf{r}_{
 
 However, EC introduces a causality problem for autoregressive generation. The selection indicator $z_{t,i}$ depends on all tokens' scores $\{r_{1,i}, \dots, r_{N,i}\}$—including future tokens unavailable during inference. Extending EC to batch-level top-$k$ (Ludziejewski et al., 2024) partially alleviates this but does not fully restore causality, as routing still depends on batch composition.
 
-### GEC: Stochastic Relaxation
+### ET: Stochastic Relaxation
 
-GEC further relaxes the per-batch Load Balancing constraint to a stochastic expectation:
+ET further relaxes the per-batch Load Balancing constraint to a stochastic expectation:
 
 $$
 \begin{aligned}
@@ -101,19 +101,19 @@ where $c_i$ is the $(1 - 1/E)$-quantile of expert $i$'s score distribution, esti
 
 ## 3. Methods
 
-Suppose we have an expansion rate of $E$ (i.e., the sparsity ratio). For each expert, GEC seeks to pick the top $1/E$ fraction of tokens from the full router logit distribution, rather than from a single batch. To do so, let $N$ be the number of tokens in a batch and $k = N/E$ be the ideal number of selected tokens in a batch under perfect load balance for each expert.
+Suppose we have an expansion rate of $E$ (i.e., the sparsity ratio). For each expert, ET seeks to pick the top $1/E$ fraction of tokens from the full router logit distribution, rather than from a single batch. To do so, let $N$ be the number of tokens in a batch and $k = N/E$ be the ideal number of selected tokens in a batch under perfect load balance for each expert.
 
-GEC records the exponential moving average (EMA) of the cutoff threshold, i.e. the value of the $k$-th largest router logit of each batch. Conceptually, this cutoff-EMA $c_i$ serves as a statistical estimator of the $1/E$-quantile of the router logit distribution. Then, for both training and inference, we route tokens via binary thresholding, setting $z_{t,i} = \mathbb{1}\{r_{t,i} > c_i\}$ where $z_{t,i} \in \{0,1\}$ is the binary indicator of whether token $t$ is routed to expert $i$.
+ET records the exponential moving average (EMA) of the cutoff threshold, i.e. the value of the $k$-th largest router logit of each batch. Conceptually, this cutoff-EMA $c_i$ serves as a statistical estimator of the $1/E$-quantile of the router logit distribution. Then, for both training and inference, we route tokens via binary thresholding, setting $z_{t,i} = \mathbb{1}\{r_{t,i} > c_i\}$ where $z_{t,i} \in \{0,1\}$ is the binary indicator of whether token $t$ is routed to expert $i$.
 
 Population-level thresholding decouples routing decisions from batch composition. Essentially, we no longer fix the number of activated tokens in a batch, but only seek to do so asymptotically. In exchange, we smooth the batch-to-batch fluctuations of the cutoff threshold, yielding more consistent routing during training. The larger effective decision pool creates greater potential for expert specialization (Qiu et al., 2025). Meanwhile, routing at inference becomes fully causal as we only need the global statistics of the cutoff-EMA and not any information about the current batch. Thus, we eliminate the train-inference mismatch of EC.
 
 ### Warmup
 
-At the beginning of training, the router logits' distribution is not stable yet. The cutoff-EMA requires several thousand steps to converge to a meaningful estimate of the population quantile. During this period, incorrect thresholds cause severe expert starvation—most tokens fail to exceed the threshold, leaving experts underutilized. To address this cold-start problem, we use standard EC routing for the first 4k steps before switching to GEC. This allows the cutoff-EMA to accumulate stable statistics under controlled load balance.
+At the beginning of training, the router logits' distribution is not stable yet. The cutoff-EMA requires several thousand steps to converge to a meaningful estimate of the population quantile. During this period, incorrect thresholds cause severe expert starvation—most tokens fail to exceed the threshold, leaving experts underutilized. To address this cold-start problem, we use standard EC routing for the first 4k steps before switching to ET. This allows the cutoff-EMA to accumulate stable statistics under controlled load balance.
 
 ### Expert Capacity
 
-With GEC, the number of tokens activating each expert is no longer fixed but fluctuates slightly around the target capacity. To avoid GPU out-of-memory, we enforce expert capacity during training time to bound the number of tokens activating each expert (Fedus et al., 2022). This design introduces a small discrepancy between training and inference time, which we find acceptable.
+With ET, the number of tokens activating each expert is no longer fixed but fluctuates slightly around the target capacity. To avoid GPU out-of-memory, we enforce expert capacity during training time to bound the number of tokens activating each expert (Fedus et al., 2022). This design introduces a small discrepancy between training and inference time, which we find acceptable.
 
 ### Shared Expert
 
@@ -123,7 +123,7 @@ Unlike Token-choice MoE which always activates some experts, Expert Choice model
 
 Following LossFree (Wang et al., 2024) and Mixture-of-Depths (Raposo et al., 2024), we use sigmoid gates ($p_{t,i} = \sigma(r_{t,i})$) instead of softmax gates.
 
-### Algorithm 1: Global Expert Choice Routing
+### Algorithm 1: Expert Threshold Routing
 
 ```
 Input: router logits r ∈ ℝ^(N×G_E), cutoff-EMA {c_i}, 
@@ -155,9 +155,9 @@ We report CE loss and CORE benchmark results (Li et al., 2024). Architecture, tr
 
 ### 4.2. Main Results
 
-We compare Global Expert Choice (GEC) against Expert Choice (EC) and Token Choice (TC) routing. All variants share the same architecture and parameter count. For GEC, we use EMA decay $\beta = 0.999$ and capacity $C = 0.5$; we also evaluate a variant with EC warmup for the first 4k steps. For EC, we sweep the global selection batch size from 2k to 512k tokens. For TC, we report variants with no load balancing, auxiliary loss ($\alpha=0.001$), and loss-free load balancing ($\mu=0.005$).
+We compare Expert Threshold (ET) against Expert Choice (EC) and Token Choice (TC) routing. All variants share the same architecture and parameter count. For ET, we use EMA decay $\beta = 0.999$ and capacity $C = 0.5$; we also evaluate a variant with EC warmup for the first 4k steps. For EC, we sweep the global selection batch size from 2k to 512k tokens. For TC, we report variants with no load balancing, auxiliary loss ($\alpha=0.001$), and loss-free load balancing ($\mu=0.005$).
 
-**Table 1: Main results comparing EC, TC, and GEC routing**
+**Table 1: Main results comparing EC, TC, and ET routing**
 
 | Method | Batch | CE loss (↓) | CORE (↑) |
 |--------|-------|-------------|----------|
@@ -168,8 +168,8 @@ We compare Global Expert Choice (GEC) against Expert Choice (EC) and Token Choic
 | EC | 8k | 2.845 | 18.83 |
 | EC | 64k | 2.841 | 18.754 |
 | EC | 512k | 2.843 | 19.94 |
-| GEC ($\beta$=0.999) | ~500M | 2.844 | 16.867 |
-| GEC ($\beta$=0.999+warmup) | 0.5M→500M | 2.844 | **19.876** |
+| ET ($\beta$=0.999) | ~500M | 2.844 | 16.867 |
+| ET ($\beta$=0.999+warmup) | 0.5M→500M | 2.844 | **19.876** |
 
 **Table 2: d20 results**
 
@@ -178,13 +178,13 @@ We compare Global Expert Choice (GEC) against Expert Choice (EC) and Token Choic
 | dense | — | 2.751 | 20.43 |
 | TC aux | 32k | 2.687 | 22.31 |
 | EC | 256k | 2.621 | 24.98 |
-| GEC ($\beta$=0.999+warmup) | 256k→500M | **2.620** | **25.14** |
+| ET ($\beta$=0.999+warmup) | 256k→500M | **2.620** | **25.14** |
 
 **Key findings:**
-- GEC+warmup consistently outperforms TC in both CE loss (by 0.05 on d12 and 0.067 on d20) and CORE (by 1.89 on d12 and 2.83 on d20)
-- EC with large batch sizes achieves comparable CE loss to GEC, confirming that explicit large-batch selection and EMA-based thresholding reach similar training loss
-- EC 512k slightly edges out GEC+warmup on CORE (19.94 vs. 19.88) in d12, though both substantially outperform TC
-- Critically, GEC without warmup suffers degraded downstream performance (CORE 16.87, below even baseline TC at 17.98) despite matching GEC+warmup in CE loss
+- ET+warmup consistently outperforms TC in both CE loss (by 0.05 on d12 and 0.067 on d20) and CORE (by 1.89 on d12 and 2.83 on d20)
+- EC with large batch sizes achieves comparable CE loss to ET, confirming that explicit large-batch selection and EMA-based thresholding reach similar training loss
+- EC 512k slightly edges out ET+warmup on CORE (19.94 vs. 19.88) in d12, though both substantially outperform TC
+- Critically, ET without warmup suffers degraded downstream performance (CORE 16.87, below even baseline TC at 17.98) despite matching ET+warmup in CE loss
 
 ### 4.3. Analysis
 
@@ -192,56 +192,56 @@ We compare Global Expert Choice (GEC) against Expert Choice (EC) and Token Choic
 
 We examine how EC's routing batch size affects model quality. Table 1 shows EC across four batch sizes (2k, 8k, 64k, 512k tokens). Larger batches yield better performance: training CE loss improves from 2.874 (2k) to 2.855 (8k) to 2.836 (64k), with CORE Eval scores following a similar trend (17.91 → 18.76 → 19.62). This is expected: top-$k$ selection over larger token pools better approximates the population-level routing decision. However, performance saturates around 64k tokens—increasing to 512k provides no further gain (2.843 CE, 19.94 CORE Eval).
 
-> **Figure 2 description**: A dual-axis plot showing EC performance across routing batch sizes (2k, 8k, 64k, 512k, and GEC). Left y-axis shows Train CE Loss (decreasing trend), right y-axis shows CORE % (increasing trend). Both metrics improve with larger batches but plateau beyond 64k tokens. GEC achieves comparable performance without batch size constraints.
+> **Figure 2 description**: A dual-axis plot showing EC performance across routing batch sizes (2k, 8k, 64k, 512k, and ET). Left y-axis shows Train CE Loss (decreasing trend), right y-axis shows CORE % (increasing trend). Both metrics improve with larger batches but plateau beyond 64k tokens. ET achieves comparable performance without batch size constraints.
 
 #### 4.3.2. TRAIN-EVALUATION GAP
 
 A key concern for Expert Choice is the discrepancy between training and inference. During training, EC selects the top-$k$ tokens for each expert within a batch; during autoregressive inference, future tokens are unavailable, making batch-level top-$k$ selection impossible. Prior work addresses this via auxiliary predictors (Raposo et al., 2024) or batch-level approximations (Ludziejewski et al., 2024), but these introduce additional complexity or latency.
 
-Our results demonstrate that this concern depends critically on the routing batch size. As shown in Table 1, EC with large batch sizes (64k, 512k) achieves validation loss nearly identical to GEC (2.841–2.843 vs 2.844), with comparable CORE Eval scores. However, smaller batch sizes reveal significant train-inference mismatch: EC at 2k tokens shows degraded CORE Eval performance (17.91 vs 19.94 at 512k) and evaluation loss (2.910 vs 2.843). This gap arises because top-$k$ selection over a small batch is a noisy estimate of the population-level routing decision; at inference (batch size 1), this noise becomes extreme.
+Our results demonstrate that this concern depends critically on the routing batch size. As shown in Table 1, EC with large batch sizes (64k, 512k) achieves validation loss nearly identical to ET (2.841–2.843 vs 2.844), with comparable CORE Eval scores. However, smaller batch sizes reveal significant train-inference mismatch: EC at 2k tokens shows degraded CORE Eval performance (17.91 vs 19.94 at 512k) and evaluation loss (2.910 vs 2.843). This gap arises because top-$k$ selection over a small batch is a noisy estimate of the population-level routing decision; at inference (batch size 1), this noise becomes extreme.
 
 > **Figure 3 description**: Plot of train-eval gap (eval loss − train loss EMA) for EC at different batch sizes over training steps. EC(2k) shows a large gap that spikes during training; EC(512k) remains near zero, demonstrating EC's sensitivity to routing batch size.
 
 #### 4.3.3. CUTOFF VS EXPERT USAGE TRADEOFF
 
-EC and GEC achieve routing stability through complementary mechanisms:
+EC and ET achieve routing stability through complementary mechanisms:
 - **EC**: Enforces fixed expert usage (each expert selects exactly top-$k$ tokens, guaranteeing usage of $1/E$ per expert). However, the cutoff threshold varies batch-to-batch, with standard deviation scaling as $O(1/\sqrt{N})$.
-- **GEC**: The cutoff-EMA provides a stable threshold ($\beta=0.999$), while expert usage fluctuates around the capacity target.
+- **ET**: The cutoff-EMA provides a stable threshold ($\beta=0.999$), while expert usage fluctuates around the capacity target.
 
 > **Figure 4 description**: Two-panel plot showing the cutoff stability vs expert usage tradeoff.
-> - Top panel: Cutoff Absolute Deviation from EMA. EC(512k) shows non-zero deviation; GEC achieves zero deviation by design.
-> - Bottom panel: Expert Usage. EC usage is fixed at 1/16 by top-$k$ selection; GEC usage varies around the capacity target.
+> - Top panel: Cutoff Absolute Deviation from EMA. EC(512k) shows non-zero deviation; ET achieves zero deviation by design.
+> - Bottom panel: Expert Usage. EC usage is fixed at 1/16 by top-$k$ selection; ET usage varies around the capacity target.
 
 #### 4.3.4. DYNAMIC COMPUTATION ALLOCATION
 
-A key advantage of GEC/EC is its ability to dynamically allocate computation to different tokens.
+A key advantage of ET/EC is its ability to dynamically allocate computation to different tokens.
 
-> **Figure 5(a) description**: Per-token expert routing visualization on a GSM8K passage. Tokens are colored by total fanout (sum of experts activated across layers). The model allocates more computation to structurally important tokens—such as punctuation, sentence boundaries, and numerical results—while assigning fewer experts to common content words. This adaptive allocation suggests that EC/GEC learns to concentrate capacity on tokens requiring more complex reasoning.
+> **Figure 5(a) description**: Per-token expert routing visualization on a GSM8K passage. Tokens are colored by total fanout (sum of experts activated across layers). The model allocates more computation to structurally important tokens—such as punctuation, sentence boundaries, and numerical results—while assigning fewer experts to common content words. This adaptive allocation suggests that EC/ET learns to concentrate capacity on tokens requiring more complex reasoning.
 
 #### 4.3.5. EXPERT SPECIALIZATION
 
-We follow Global LBL (Qiu et al., 2025) to evaluate expert specialization across EC with various batch sizes (2k, 8k, 64k, 512k) and GEC. For each configuration, we measure the expert token ratio—the fraction of tokens from a given domain routed to each expert—across HumanEval (code) and GSM8K (math) evaluation sets.
+We follow Global LBL (Qiu et al., 2025) to evaluate expert specialization across EC with various batch sizes (2k, 8k, 64k, 512k) and ET. For each configuration, we measure the expert token ratio—the fraction of tokens from a given domain routed to each expert—across HumanEval (code) and GSM8K (math) evaluation sets.
 
-> **Figure 5(b) description**: Expert activation heatmaps comparing EC (batch size 2k) with GEC (warmup). Each heatmap plots Expert ID (columns) vs Layer (rows), with color intensity indicating expert token ratio for HumanEval (code) and GSM8K (math) domains.
+> **Figure 5(b) description**: Expert activation heatmaps comparing EC (batch size 2k) with ET (warmup). Each heatmap plots Expert ID (columns) vs Layer (rows), with color intensity indicating expert token ratio for HumanEval (code) and GSM8K (math) domains.
 > - Top (EC 2k): Shows less specialization with diffuse activation patterns
-> - Bottom (GEC warmup): Shows more extreme activation patterns with concentrated dark cells, suggesting more domain-aware routing and sharper specialization comparable to large-batch EC
+> - Bottom (ET warmup): Shows more extreme activation patterns with concentrated dark cells, suggesting more domain-aware routing and sharper specialization comparable to large-batch EC
 
 ### 4.4. Comparison to Token Choice
 
-> **Figure 6 description**: Plot of Layer-1 cutoff-EMA (expert 0) under EC/GEC vs DeepSeek loss-free load balancing over training steps. EC/GEC quickly stabilizes, while DeepSeek's loss-free controller drifts upward, indicating persistent imbalance. This is consistent with reports that loss-free load balancing becomes unstable when load statistics are noisy (Wang et al., 2024).
+> **Figure 6 description**: Plot of Layer-1 cutoff-EMA (expert 0) under EC/ET vs DeepSeek loss-free load balancing over training steps. EC/ET quickly stabilizes, while DeepSeek's loss-free controller drifts upward, indicating persistent imbalance. This is consistent with reports that loss-free load balancing becomes unstable when load statistics are noisy (Wang et al., 2024).
 
-EC/GEC achieves more stable load balancing than Token Choice, especially in early layers. We conjecture that once routing concentrates, bias updates lose their corrective signal.
+EC/ET achieves more stable load balancing than Token Choice, especially in early layers. We conjecture that once routing concentrates, bias updates lose their corrective signal.
 
 ### 4.5. Ablations
 
 #### Warmup
 
-We find warmup crucial for GEC. In the early stages of training, the cutoff threshold is not yet stable, while the EMA lags behind the actual cutoff threshold because of slow update speed ($1/(1-\beta) \approx 1000$ steps). As a result, threshold-based routing becomes unreliable: tokens that should be routed are dropped, and the capacity lower bound is frequently triggered. This leads to undertrained experts during early training.
+We find warmup crucial for ET. In the early stages of training, the cutoff threshold is not yet stable, while the EMA lags behind the actual cutoff threshold because of slow update speed ($1/(1-\beta) \approx 1000$ steps). As a result, threshold-based routing becomes unreliable: tokens that should be routed are dropped, and the capacity lower bound is frequently triggered. This leads to undertrained experts during early training.
 
 To address this, we warm up the routing by using TopK selection for the first 4,000 steps before switching to threshold-based routing.
 
-> **Figure 7 description**: Six-panel plot showing effect of TopK warmup on GEC training dynamics (first 8k steps).
-> - (a) L9 cutoff vs EMA: GEC without warmup shows cutoff-EMA lagging behind actual cutoff; warmup stabilizes trajectory
+> **Figure 7 description**: Six-panel plot showing effect of TopK warmup on ET training dynamics (first 8k steps).
+> - (a) L9 cutoff vs EMA: ET without warmup shows cutoff-EMA lagging behind actual cutoff; warmup stabilizes trajectory
 > - (b) Raw expert usage: Higher with warmup
 > - (c) Starvation rate: Lower with warmup (capacity lower bound triggered less frequently)
 > - (d) L6 cutoff-EMA: More stable with warmup
@@ -256,10 +256,10 @@ To address this, we warm up the routing by using TopK selection for the first 4,
 |--------|--------|-----|------|
 | EC (bsz 512k) | Yes | 2.843 | 19.94 |
 | EC (bsz 512k) | No | 2.862 | 16.307 |
-| GEC ($\beta$=0.999) | Yes | 2.844 | 16.867 |
-| GEC ($\beta$=0.999) | No | 2.862 | 18.515 |
+| ET ($\beta$=0.999) | Yes | 2.844 | 16.867 |
+| ET ($\beta$=0.999) | No | 2.862 | 18.515 |
 
-In both GEC and EC, shared expert improves loss by roughly 0.02. We suspect that while later layers need early layers to empower the router, sometimes early layers have no activated experts, causing ineffective routing.
+In both ET and EC, shared expert improves loss by roughly 0.02. We suspect that while later layers need early layers to empower the router, sometimes early layers have no activated experts, causing ineffective routing.
 
 ---
 
@@ -296,11 +296,11 @@ where $\alpha$ is a coefficient (typically $10^{-2}$ to $10^{-4}$). However, in 
 | LossFree | – | – | ✓ | – |
 | Seq EC | – | ✓ | – | – |
 | Batch EC | – | – | ✓ | – |
-| **GEC (ours)** | – | – | – | ✓ |
+| **ET (ours)** | – | – | – | ✓ |
 
-**Table 5: Conceptual connections between GEC and recent work**
+**Table 5: Conceptual connections between ET and recent work**
 
-| GEC Component | Similar To | Connection |
+| ET Component | Similar To | Connection |
 |--------------|------------|------------|
 | Cutoff-EMA $c_i$ | LossFree bias $b_i$ | Per-expert scalar; no aux loss |
 | $1-\beta$ | LossFree $\mu$ | Update rate |
@@ -309,7 +309,7 @@ Recent work explores auxiliary-loss-free alternatives:
 - **DeepSeekMoE** (Dai et al., 2024): Introduces expert-specific bias terms $b_i$ that dynamically adjust based on load statistics
 - **LongCat-Flash** (Team, 2025a): Replaces sign-based update with proportional control: $\Delta b_i = \mu \cdot (1 - f_i)$
 
-Global Expert Choice (GEC) combines these ideas by extending the philosophy to compute balance statistics across the entire pretrain population via EMA-based global cutoff thresholds.
+Expert Threshold (ET) combines these ideas by extending the philosophy to compute balance statistics across the entire pretrain population via EMA-based global cutoff thresholds.
 
 ### 5.3. Dynamic Computation
 
@@ -329,19 +329,19 @@ EC poses a causality challenge: token selection requires ranking against future 
 3. **Segment-level routing**: Lory routes at segment level using previous segment to determine next
 4. **Sequence-level selection**: SeqTopK shifts expert budgets to sequence-level with Expert Cache
 
-All above approaches have significant drawbacks: predictions can be noisy, batch-level top-$k$ imposes inference-time constraints, and routing dependent on global batch composition raises privacy/safety concerns. In contrast, GEC reduces to a simple threshold test ($r_{t,i} > c_i$) at inference, eliminating train-inference discrepancy.
+All above approaches have significant drawbacks: predictions can be noisy, batch-level top-$k$ imposes inference-time constraints, and routing dependent on global batch composition raises privacy/safety concerns. In contrast, ET reduces to a simple threshold test ($r_{t,i} > c_i$) at inference, eliminating train-inference discrepancy.
 
 ### 5.5. From Batch to Population Level Statistics
 
-The progression from sample, batch, to population-level statistics is a recurring theme in deep learning. While techniques like Batch Normalization and contrastive learning rely on batch statistics, momentum-based approaches and adaptive optimizers like Adam use Exponential Moving Averages (EMA) to approximate population distributions. GEC applies this principle to routing via EMA-based cutoffs.
+The progression from sample, batch, to population-level statistics is a recurring theme in deep learning. While techniques like Batch Normalization and contrastive learning rely on batch statistics, momentum-based approaches and adaptive optimizers like Adam use Exponential Moving Averages (EMA) to approximate population distributions. ET applies this principle to routing via EMA-based cutoffs.
 
 ---
 
 ## 6. Conclusion
 
-We introduce **Global Expert Choice (GEC)**, a routing mechanism that resolves the fundamental causality issue in Expert Choice (EC) models while preserving their load-balancing advantages. By maintaining an exponential moving average of each expert's selection threshold—estimated from historical batches rather than within-batch top-$k$ selection—GEC enables fully causal routing: each token's routing decision depends only on past statistics, eliminating the need for future token access at both training and inference time.
+We introduce **Expert Threshold (ET)**, a routing mechanism that resolves the fundamental causality issue in Expert Choice (EC) models while preserving their load-balancing advantages. By maintaining an exponential moving average of each expert's selection threshold—estimated from historical batches rather than within-batch top-$k$ selection—ET enables fully causal routing: each token's routing decision depends only on past statistics, eliminating the need for future token access at both training and inference time.
 
-Our experiments demonstrate that GEC achieves competitive performance with EC (matching validation loss at 2.84) while outperforming Token Choice by 0.067 in cross-entropy loss, all while enabling causal autoregressive generation. The cutoff-EMA mechanism provides stable routing thresholds that accurately approximate EC's top-$k$ boundaries, as evidenced by the minimal train-inference gap observed across all metrics. We further show that a warmup strategy—using EC's top-$k$ routing before transitioning to threshold-based selection—stabilizes early training dynamics.
+Our experiments demonstrate that ET achieves competitive performance with EC (matching validation loss at 2.84) while outperforming Token Choice by 0.067 in cross-entropy loss, all while enabling causal autoregressive generation. The cutoff-EMA mechanism provides stable routing thresholds that accurately approximate EC's top-$k$ boundaries, as evidenced by the minimal train-inference gap observed across all metrics. We further show that a warmup strategy—using EC's top-$k$ routing before transitioning to threshold-based selection—stabilizes early training dynamics.
 
 These findings suggest that the perceived incompatibility between Expert Choice routing and causal language modeling can be effectively bridged through population-level threshold estimation, opening new directions for scalable MoE architectures.
 
@@ -378,7 +378,7 @@ This paper presents work whose goal is to advance the field of Machine Learning.
 
 ### A. Future Information Leakage for Expert Choice Models
 
-*(Technical appendix analyzing information-theoretic bounds on EC's causality violation; shows GEC with finite-precision cutoffs maintains causality)*
+*(Technical appendix analyzing information-theoretic bounds on EC's causality violation; shows ET with finite-precision cutoffs maintains causality)*
 
 ### B. Architecture Details
 
@@ -430,7 +430,7 @@ This paper presents work whose goal is to advance the field of Machine Learning.
 
 ### E. Additional Experiment Results
 
-> **Figure 9 description**: Capacity constraint behavior during GEC training (from step 4k onward, after warmup).
+> **Figure 9 description**: Capacity constraint behavior during ET training (from step 4k onward, after warmup).
 > - (a) Raw Expert Usage: Stabilizes around 6.5%
 > - (b) Saturation Rate: Fraction of selected tokens dropped due to capacity limits; remains low
 > - (c) Starvation Rate: Fraction of unused expert capacity; remains low
@@ -438,7 +438,7 @@ This paper presents work whose goal is to advance the field of Machine Learning.
 
 > **Figures 10-12 descriptions**: Per-layer expert fanout and full routing visualizations on GSM8K and HumanEval passages. Numerical and code-specific tokens receive substantially higher fanout than function words. Routing patterns reveal domain-specific structure.
 
-> **Figure 13 description**: Expert activation heatmaps across routing configurations (EC with batch sizes 2k, 8k, 64k, 512k, and GEC with warmup). Specialization sharpens with larger EC batch sizes; GEC warmup achieves comparable patterns without batch size dependence.
+> **Figure 13 description**: Expert activation heatmaps across routing configurations (EC with batch sizes 2k, 8k, 64k, 512k, and ET with warmup). Specialization sharpens with larger EC batch sizes; ET warmup achieves comparable patterns without batch size dependence.
 
 > **Figure 14 description**: Comparison of evaluation loss with and without normalization. The configuration without normalization consistently achieves lower loss than the fanout-normalized variant.
 

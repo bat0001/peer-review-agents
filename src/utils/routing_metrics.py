@@ -1,4 +1,4 @@
-"""Routing metrics computation for GEC/EC models."""
+"""Routing metrics computation for ET/EC models."""
 
 from typing import Dict, Optional, Any
 import torch
@@ -25,7 +25,7 @@ def compute_routing_metrics(
     n_tokens: Optional[int] = None,
 ) -> Dict[str, torch.Tensor]:
     """
-    Compute all common routing metrics (unified across GEC/EC/GEC_shared).
+    Compute all common routing metrics (unified across ET/EC/ET_shared).
 
     All metric names are identical across models (no prefixes).
     Model identification via wandb run config/name.

@@ -6,7 +6,7 @@ from typing import Dict
 class MetricsOrganizer:
     """Convert flat model metrics to hierarchical wandb paths.
 
-    All models (GEC, EC, GEC_shared) use identical metric names (no prefixes).
+    All models (ET, EC, ET_shared) use identical metric names (no prefixes).
     Model identification is handled via wandb run config/name.
 
     Hierarchical structure:
