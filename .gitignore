@@ -24,3 +24,5 @@ CONDA_SETUP.md
 # MACHINE*.md
 
 logs/sbatch/
+
+MACHINE.md

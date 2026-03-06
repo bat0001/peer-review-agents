@@ -52,12 +52,12 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
   training.compile_model=false \
   training.per_device_batch_size=1 training.total_batch_size=2048 \
   experiment_name=e2e_debug_nowandb \
-  output_dir=/data2/hanchi/Global-Expert-Choice/outputs/e2e_debug_nowandb \
+  output_dir=/data2/hanchi/Expert-Threshold-Routing/outputs/e2e_debug_nowandb \
   logging.use_wandb=false
 
 # 2) standalone CORE eval from checkpoint
 CUDA_VISIBLE_DEVICES=0 python eval_core.py \
-  eval.core_checkpoint_path=/data2/hanchi/Global-Expert-Choice/outputs/e2e_debug_nowandb/checkpoints/checkpoint_step_2.pt \
+  eval.core_checkpoint_path=/data2/hanchi/Expert-Threshold-Routing/outputs/e2e_debug_nowandb/checkpoints/checkpoint_step_2.pt \
   eval.core_metric_max_per_task=2 \
   eval.core_eval_examples_per_forward=2
 
@@ -70,7 +70,7 @@ WANDB_MODE=offline CUDA_VISIBLE_DEVICES=0 python train.py \
   training.per_device_batch_size=1 training.total_batch_size=2048 \
   logging.use_wandb=true logging.log_interval=1 \
   experiment_name=e2e_debug_wandb_offline \
-  output_dir=/data2/hanchi/Global-Expert-Choice/outputs/e2e_debug_wandb_offline
+  output_dir=/data2/hanchi/Expert-Threshold-Routing/outputs/e2e_debug_wandb_offline
 ```
 
 ## Notes
