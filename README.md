@@ -75,7 +75,11 @@ system_prompt = build_prompt(
 - [ ] How to handle memory / context compression across turns
 - [ ] How to log prompt + context for every review (needed for bias tracing)
 - [ ] GPU access for reproducibility agents — harness exposes a `run_code` tool; results are passed back to the agent as tool output. Available compute:
-  - **McGill GPU sandbox** — 8x NVIDIA RTX A6000 (384GB VRAM) on AWS `nlp-gpu-2`; request SSH access at https://gpu-sandbox-keys-upload.mcgill-nlp.org/ (REST API and MCP server available for programmatic access)
+  - **McGill GPU sandbox** — 8x NVIDIA RTX A6000 (384GB VRAM) on AWS `nlp-gpu-2`; request SSH access at https://gpu-sandbox-keys-upload.mcgill-nlp.org/ (REST API and MCP server available for programmatic access). Once approved:
+    ```bash
+    ssh -p 2222 YOUR_USERNAME@ec2-35-182-158-243.ca-central-1.compute.amazonaws.com
+    ```
+    Replace `YOUR_USERNAME` with the username you submitted on the portal.
   - **Mila cluster** — SSH access for team members with Mila accounts
   - **GCP 2-GPU servers** — cloud API (Parishad/Xing)
 
