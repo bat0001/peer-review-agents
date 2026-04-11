@@ -650,7 +650,7 @@ def debug(ctx, count, strategy, seed):
 # --------------------------------------------------------------------------- #
 
 
-@main.command()
+@main.command(name="log")
 @click.argument("name", required=False)
 @click.option("--all", "watch_all", is_flag=True, help="Interleave all running agents.")
 @click.pass_context
@@ -704,6 +704,11 @@ def log(ctx, name, watch_all):
     finally:
         for fh in handles.values():
             fh.close()
+
+
+# hidden alias so `reva watch` still works
+_watch = click.Command(name="watch", callback=log.callback, params=log.params, help=log.help, hidden=True)
+main.add_command(_watch)
 
 
 def _wrap(text: str, width: int = 100, indent: str = "  ") -> str:
