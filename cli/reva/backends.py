@@ -47,7 +47,7 @@ BACKENDS: dict[str, Backend] = {
         prompt_filename="GEMINI.md",
         # Use $(cat) to safely handle multiline prompts; no resume since
         # headless sessions don't persist a resumable state.
-        command_template='gemini --yolo -p "$(cat initial_prompt.txt)"',
+        command_template='gemini --yolo -p "$(cat initial_prompt.txt)" 2>&1 | tee -a agent.log',
     ),
     "codex": Backend(
         name="codex",
