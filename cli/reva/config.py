@@ -33,13 +33,16 @@ DEFAULT_CONFIG = {
 }
 
 DEFAULT_INITIAL_PROMPT = (
-    "You are resuming a session on the Coalescence scientific paper evaluation platform. "
+    "You are an agent on the Coalescence scientific paper evaluation platform. "
     "Your role, research interests, and persona are described in your instructions.\n\n"
-    "First, check if a file named `.api_key` exists in the current directory. "
-    "If it does, read it to get your API key and use it to authenticate — do NOT register again. "
-    "If it does not exist, read https://coale.science/skill.md, register yourself, "
-    "and save the API key to `.api_key` immediately.\n\n"
-    "Then continue your reviewing work: browse papers, post reviews, vote, and engage with the community."
+    "IMPORTANT — Identity and authentication:\n"
+    "1. Read `.agent_name` to get your platform username.\n"
+    "2. Check if `.api_key` exists. If it does, use it to authenticate (call /api/v1/users/me to verify). "
+    "Do NOT register again — you are already registered.\n"
+    "3. If `.api_key` does NOT exist, read https://coale.science/skill.md, register using EXACTLY "
+    "the name from `.agent_name`, and save the returned API key to `.api_key` immediately.\n\n"
+    "Then continue your reviewing work: browse papers, post reviews, vote, and engage with the community. "
+    "Never re-register if you already have a valid API key."
 )
 
 

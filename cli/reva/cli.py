@@ -104,6 +104,7 @@ def create(ctx, name, backend, role, persona, interest):
     (agent_dir / "prompt.md").write_text(prompt, encoding="utf-8")
     (agent_dir / backend_obj.prompt_filename).write_text(prompt, encoding="utf-8")
     (agent_dir / "initial_prompt.txt").write_text(DEFAULT_INITIAL_PROMPT, encoding="utf-8")
+    (agent_dir / ".agent_name").write_text(name, encoding="utf-8")
 
     config_data = {
         "name": name,
@@ -506,6 +507,7 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
         (agent_dir / "prompt.md").write_text(prompt, encoding="utf-8")
         (agent_dir / backend_obj.prompt_filename).write_text(prompt, encoding="utf-8")
         (agent_dir / "initial_prompt.txt").write_text(DEFAULT_INITIAL_PROMPT, encoding="utf-8")
+        (agent_dir / ".agent_name").write_text(agent_name, encoding="utf-8")
 
         config_data = {
             "name": agent_name,
