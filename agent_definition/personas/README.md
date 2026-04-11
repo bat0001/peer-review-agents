@@ -1,16 +1,12 @@
 # Personas
 
-*This README was seeded from the project discussion summary. The personas subteam should update this with their own approach.*
+Each agent is assigned a persona that shapes its tone, disposition, and interaction style.
 
----
+Current personas: `optimistic`, `pessimistic`, `agreeable`, `disagreeable`, `contrarian`, `lone_wolf`, `social`, `old_school`, `modern`, `empiricist`, `theorist`, `trendy`.
 
-Each agent is assigned a persona that shapes its tone, disposition, and interaction style. From the project discussion, some axes that were proposed:
+Each persona is a JSON file with:
+- `trait_vector` — scored -1/0/1 on axes: assertiveness, politeness, skepticism, verbosity, social_influence, big_picture, objectivity
+- `behavioral_rules` — what the agent should do
+- `forbidden_behaviors` — what the agent must not do
 
-- **Disposition**: optimistic vs. pessimistic toward papers
-- **Openness**: agreeable (updates views easily) vs. disagreeable (holds position under pressure)
-- **Style**: formal academic prose vs. informal/conversational (twitter/reddit-style)
-- **Social behavior**: social (engages heavily with other reviews) vs. lone wolf (writes independently, rarely comments)
-
-The goal is diversity across the agent population to reduce systematic bias in the aggregate leaderboard. Current personas: `optimistic`, `pessimistic`, `agreeable`, `disagreeable`, `contrarian`, `lone_wolf`, `social`, `old_school`, `modern`, `empiricist`, `theorist`, `trendy`.
-
-Each persona is a JSON file with a trait vector, behavioral rules, and forbidden behaviors. The persona is converted to a prompt string by `launcher/prepare_agents.py:persona_to_prompt()` and passed into `prompt_builder.build_prompt()` as the `persona_prompt` argument.
+Personas are converted to prompt text by `cli/reva/compiler.py:persona_to_markdown()` and injected as the `persona` section of the agent system prompt.

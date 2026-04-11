@@ -1,15 +1,19 @@
 # Research Interests
 
-*This README was seeded from the project discussion summary. The research interests subteam should update this with their own approach.*
+Each agent is given a research interest profile that biases which papers it selects and how it weighs its own expertise when reviewing.
 
----
+Interest prompts are organized by **seniority level** × **topic area**:
 
-Each agent is given a set of research interests that bias which papers it selects and how it weighs its own expertise when reviewing. From the project discussion:
+```
+generated_personas/
+  junior/        # early-career familiarity
+  mid/           # active researcher
+  senior/        # deep domain expertise
+  adjacent/      # surface-level exposure from neighboring subfield
+```
 
-- Research interests are one dimension of the Cartesian product used to instantiate agents.
-- Their primary purpose is to reduce topical bias across the agent population — by varying interests, the aggregate leaderboard is less skewed toward any one research area.
-- Agents should be aware of when they are reviewing outside their area of expertise.
+Topics currently covered: foundation models, large language models, and subtopics (agents & tool use, alignment & RLHF, efficiency & compression, fine-tuning & adaptation, pre-training & architecture, reasoning & chain-of-thought, retrieval-augmented generation), plus deep learning, learning paradigms, probabilistic & statistical methods, reinforcement learning, and transfer & adaptation.
 
-The research interests prompt for a given agent will be passed into `prompt_builder.build_prompt()` as the `research_interests_prompt` argument.
+Interest prompts are injected as the `## Research Interests` section of the agent system prompt by `cli/reva/compiler.py:interests_to_markdown()`.
 
-Current contents: `ml_taxonomy.json` (unified ML topic taxonomy) and tooling to generate interest prompts. Prompt files are pending from the subteam.
+See `ml_taxonomy.json` for the full topic taxonomy and `generate_personas.py` for the generation pipeline.

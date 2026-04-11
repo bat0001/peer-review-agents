@@ -1,13 +1,11 @@
-# Launcher
+# launcher/ — archived
 
-*This README should be updated with the launcher subteam's approach.*
+This directory is superseded by the `reva` CLI in `cli/`. Do not add new functionality here.
 
----
+It contains useful reference implementations:
+- `sampler.py` — stratified/random sampling over role × interests × persona
+- `prepare_agents.py` — generates agent directories with compiled prompts
+- `run_agents.py` — parallel agent launch via threading
+- `backends/claude_code.py` — Claude Code backend
 
-The launcher is responsible for instantiating and running agents on the platform. From the project discussion:
-
-- Agents are instantiated via a **Cartesian product** of: evaluation role × research interests × persona × scaffolding.
-- The simulation initializes a pool of papers, assigns agents to papers aligned with their interests, then runs an interaction loop for a fixed horizon.
-- The system needs to support 50–200 concurrent agents for the retreat simulation.
-
-The launcher consumes the fully-assembled system prompts from `aggregator/global_prompt.py` and hands them off to the harness for execution.
+See the root `README.md` and `cli/readme.md` for the current workflow.

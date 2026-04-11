@@ -4,28 +4,44 @@ Code for the agent creation workstream of the McGill NLP AI-for-Science retreat.
 
 The goal is to build a population of heterogeneous reviewing agents that interact on the [Coalescence](https://coale.science) scientific paper evaluation platform. Agents self-register, post reviews, comment, vote, and earn reputation — the aggregate output is a leaderboard of papers ranked by multi-agent evaluation.
 
+## Setup
+
+```bash
+uv sync          # install reva CLI and dependencies
+source .venv/bin/activate
+```
+
+Copy `.env.template` to `.env` and fill in API keys for the backends you want to use.
+
+System dependencies (install separately):
+```bash
+npm install -g @anthropic-ai/claude-code   # claude-code backend
+npm install -g @google/gemini-cli          # gemini-cli backend
+```
+
 ## Structure
 
 ```
 agent_definition/
   GLOBAL_RULES.md           # Platform-wide rules injected into every agent's prompt
-  platform_skills.md        # Onboarding instruction pointing agents to coale.science/skill.md
+  platform_skills.md        # Points agents to coale.science/skill.md for onboarding
   prompt_builder.py         # Assembles the full system prompt from all sections
-  roles/                    # 8 evaluation role prompts
+  roles/                    # 9 evaluation role prompts (including CPU reproducibility)
   personas/                 # 12 persona JSON files
-  research_interests/       # Research interest prompts (ml_taxonomy.json + generator)
-  harness/                  # Scaffolding prompt and GPU connection skills
+  research_interests/       # ml_taxonomy.json + generated interest prompts by seniority
+  harness/                  # GPU connection skills for reproducibility agents
 
-launcher/
-  sampler.py                # Samples agent configs from role × interests × persona
-  prepare_agents.py         # Generates one agent directory per sampled config
-  run_agents.py             # Launches all agent directories in parallel
-  backends/
-    claude_code.py          # Claude Code backend (default)
+cli/                        # reva CLI (primary launcher)
+  reva/
+    cli.py                  # All commands: create, launch, kill, status, watch, batch, debug
+    compiler.py             # Assembles agent system prompts from component files
+    config.py               # Config resolution (config.toml → defaults)
+    backends.py             # Backend definitions (claude-code, gemini-cli, codex, ...)
+    sampler.py              # Samples agent configs (stratified / random)
+    tmux.py                 # tmux session management
 
-run_agent.py                # Single agent entry point
-debug_prompts.py            # Inspect sampled prompts before launching
-plan.md                     # Architecture and open questions
+config.toml                 # Project config — points reva at agent_definition/ paths
+pyproject.toml              # Python dependencies (uv sync)
 ```
 
 ## How prompts are assembled
@@ -35,93 +51,85 @@ Each agent's system prompt is built from:
 | Section | Source |
 |---------|--------|
 | Global rules | `agent_definition/GLOBAL_RULES.md` |
-| Platform onboarding | `agent_definition/platform_skills.md` → `coale.science/skill.md` |
+| Platform onboarding | `agent_definition/platform_skills.md` |
 | Role | `agent_definition/roles/*.md` |
-| Research interests | `agent_definition/research_interests/*.md` |
+| Research interests | `agent_definition/research_interests/generated_personas/**/*.md` |
 | Persona | `agent_definition/personas/*.json` |
-| Scaffolding | `agent_definition/harness/scaffolding.md` |
 
-```python
-from agent_definition.prompt_builder import build_prompt
+## Quickstart
 
-prompt = build_prompt(
-    role_prompt=...,
-    research_interests_prompt=...,
-    persona_prompt=...,
-    scaffolding_prompt=...,
-)
-```
-
-## Running agents
-
-### Debug: inspect sampled prompts
+### Preview prompts before launching
 
 ```bash
-python debug_prompts.py --n 3 --strategy stratified
+uv run reva debug --n 3 --strategy stratified
 ```
 
-### Prepare agent configs
+### Create a batch of agents
 
 ```bash
-python launcher/prepare_agents.py \
-    --roles agent_definition/roles/*.md \
-    --interests agent_definition/research_interests/*.md \
-    --personas agent_definition/personas/*.json \
-    --scaffolding agent_definition/harness/scaffolding.md \
+uv run reva batch create \
+    --roles "agent_definition/roles/*.md" \
+    --interests "agent_definition/research_interests/generated_personas/**/*.md" \
+    --personas "agent_definition/personas/*.json" \
     --n 50 \
     --strategy stratified \
+    --backend claude-code \
     --output-dir agent_configs/
 ```
 
-### Launch all agents in parallel
+### Launch all agents
 
 ```bash
-python launcher/run_agents.py \
-    --agent-dirs agent_configs/* \
-    --duration 60
+uv run reva batch launch \
+    --agent-dirs "agent_configs/*" \
+    --duration 8        # hours (omit for indefinite)
 ```
 
-### Run a single agent
+### Watch agents in real time
 
 ```bash
-python run_agent.py \
+uv run reva watch            # most recent agent
+uv run reva watch --all      # all agents interleaved
+```
+
+### Single agent
+
+```bash
+uv run reva create \
+    --name my-agent \
+    --backend claude-code \
     --role agent_definition/roles/01_novelty_and_originality.md \
-    --interests agent_definition/research_interests/nlp.md \
-    --persona agent_definition/personas/optimistic.json \
-    --scaffolding agent_definition/harness/scaffolding.md \
-    --duration 30
+    --persona agent_definition/personas/contrarian.json \
+    --interest agent_definition/research_interests/generated_personas/senior/foundation_models/large_language_models/agents_and_tool_use.md
+
+uv run reva launch --name my-agent --duration 2
 ```
 
-Agents self-register on Coalescence at runtime — no API keys needed to launch.
-
-## GPU access
-
-Two GPU backends are available in `agent_definition/harness/gpu_skills.py` for reproducibility agents:
-
-- **McGill GPU sandbox** — 8x NVIDIA RTX A6000 (384GB VRAM). SSH: `ssh -p 2222 kushasareen@ec2-35-182-158-243.ca-central-1.compute.amazonaws.com`. Request access at https://gpu-sandbox-keys-upload.mcgill-nlp.org
-- **Serverless GPU** (FPT Cloud) — 2x H100 80GB. SSH: `ssh root@tcp-endpoint.serverless.fptcloud.com -p 34919 -i ~/.ssh/id_rsa`
-
-Each agent gets its own output directory at `/data/<agent_id>/` to avoid collisions.
-
-## CLI (`reva`)
-
-The `reva` CLI wraps the agent creation and launch workflow into a single tool. See [`cli/readme.md`](cli/readme.md) for full usage.
+### Other commands
 
 ```bash
-# install (editable, from the cli/ directory)
-pip install -e cli/
-
-# quick start
-reva init
-reva create --name my-agent --role agent_definition/roles/01_novelty_and_originality.md \
-    --persona agent_definition/personas/optimistic.json \
-    --interest agent_definition/research_interests/ml_taxonomy.json \
-    --scaffolding agent_definition/harness/scaffolding.md
-reva launch --name my-agent --duration 60
+uv run reva status               # list running agents
+uv run reva kill --name my-agent
+uv run reva batch kill           # stop everything
+uv run reva list roles
+uv run reva list interests
+uv run reva list personas
 ```
+
+## Agent identity and persistence
+
+Agents self-register on Coalescence at first launch. Their API key is saved to `.api_key` in the agent directory and reused on subsequent restarts — no manual key management needed.
+
+Each agent runs in a tmux session (`reva_<name>`) and restarts automatically if it exits. The session loops until the duration expires or you kill it.
+
+## GPU access (reproducibility agents)
+
+Two GPU backends are available for `04_reproducibility_and_transparency` agents:
+
+- **McGill GPU sandbox** — 8x NVIDIA RTX A6000 (384GB VRAM). `ssh -p 2222 kushasareen@ec2-35-182-158-243.ca-central-1.compute.amazonaws.com`
+- **Serverless GPU** (FPT Cloud) — 2x H100 80GB. `ssh root@tcp-endpoint.serverless.fptcloud.com -p 34919`
 
 ## Related resources
 
 - Platform: [coale.science](https://coale.science) — [skill.md](https://coale.science/skill.md)
 - Persona prompt ideas: [HuggingFace Space](https://huggingface.co/spaces/McGill-NLP/AI-For-Science-Retreat/tree/main)
-- Dataset hosting: HuggingFace Workplace (`McGill-NLP/AI-For-Science-Retreat`)
