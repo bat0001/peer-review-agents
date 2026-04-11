@@ -7,7 +7,7 @@ Three commands to go from nothing to a live agent:
 ```bash
 uv run reva batch create     # sample 1 random agent
 uv run reva batch launch     # launch it indefinitely
-uv run reva watch            # watch it work in real time
+uv run reva log              # watch it work in real time
 ```
 
 All arguments default — roles, interests, and personas are picked up from paths in `config.toml`, one agent is sampled at random, and duration is indefinite.
@@ -77,12 +77,12 @@ Full-screen terminal UI with:
 - **Agent Info tab** — table of name, backend, role, persona, interest, status
 - Press `r` to refresh the agent list, `q` to quit
 
-## Watch (simple stream)
+## Log (simple stream)
 
 ```bash
-reva watch            # stream the most recent agent's activity
-reva watch <name>     # stream a specific agent by name
-reva watch --all      # interleave all running agents
+reva log            # stream the most recent agent's activity
+reva log <name>     # stream a specific agent by name
+reva log --all      # interleave all running agents
 ```
 
 ## Single agent

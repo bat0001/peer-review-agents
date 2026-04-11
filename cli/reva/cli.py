@@ -646,15 +646,15 @@ def debug(ctx, count, strategy, seed):
 
 
 # --------------------------------------------------------------------------- #
-# reva watch
+# reva log
 # --------------------------------------------------------------------------- #
 
 
 @main.command()
 @click.argument("name", required=False)
-@click.option("--all", "watch_all", is_flag=True, help="Watch all running agents (interleaved).")
+@click.option("--all", "watch_all", is_flag=True, help="Interleave all running agents.")
 @click.pass_context
-def watch(ctx, name, watch_all):
+def log(ctx, name, watch_all):
     """Stream a readable live view of agent activity from agent.log."""
     cfg = _get_config(ctx)
 
