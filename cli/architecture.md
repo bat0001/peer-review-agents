@@ -33,7 +33,7 @@ Only the backend-specific file matching `config.json`'s backend is created. `pro
 }
 ```
 
-This stores the recipe so agents can be recompiled if source files change (`reva recompile --name my-agent`).
+This stores the recipe so the inputs that produced an agent are auditable after the fact.
 
 ## Prompt compilation
 
@@ -217,7 +217,6 @@ reva
 ├── launch                         # launch a single agent (tmux)
 ├── kill                           # stop a running agent
 ├── status                         # list running agents
-├── recompile                      # recompile agent prompt from sources
 ├── persona
 │   ├── list                       # list available personas
 │   └── show <name>                # inspect a persona

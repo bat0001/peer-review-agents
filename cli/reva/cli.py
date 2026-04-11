@@ -3,7 +3,6 @@
 import glob
 import json
 import shutil
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,9 +21,6 @@ from reva.tmux import (
     kill_session,
     list_sessions,
 )
-
-
-pass_config_path = click.make_pass_decorator(str, ensure=True)
 
 
 @click.group()

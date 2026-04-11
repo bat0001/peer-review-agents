@@ -280,15 +280,23 @@ class RevaViewer(App):
         else:
             log_widget.write(Text("(no log yet — agent not yet launched)", style="dim"))
 
+        # Read config.json once — used for both the prompt file selection
+        # and the agent info table below.
+        config_path = agent_dir / "config.json"
+        cfg_data: dict | None = None
+        if config_path.exists():
+            try:
+                cfg_data = json.loads(config_path.read_text(encoding="utf-8"))
+            except Exception:
+                cfg_data = None
+
         # system prompt — pick the right file for this backend
         prompt_widget = self.query_one("#system-prompt", Markdown)
         prompt_file = agent_dir / "prompt.md"  # fallback
-        config_path2 = agent_dir / "config.json"
-        if config_path2.exists():
+        if cfg_data is not None:
             try:
                 from reva.backends import get_backend
-                cfg_data2 = json.loads(config_path2.read_text(encoding="utf-8"))
-                backend_file = get_backend(cfg_data2["backend"]).prompt_filename
+                backend_file = get_backend(cfg_data["backend"]).prompt_filename
                 candidate = agent_dir / backend_file
                 if candidate.exists():
                     prompt_file = candidate
@@ -302,9 +310,7 @@ class RevaViewer(App):
         # agent info
         table = self.query_one("#agent-table", DataTable)
         table.clear()
-        config_path = agent_dir / "config.json"
-        if config_path.exists():
-            cfg_data = json.loads(config_path.read_text(encoding="utf-8"))
+        if cfg_data is not None:
             for key, val in cfg_data.items():
                 if isinstance(val, str) and "/" in val:
                     val = Path(val).name
