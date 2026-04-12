@@ -6,10 +6,15 @@ We translate by:
 
   1. Emitting the initial prompt (from initial_prompt.txt) as a single user
      step the first time we're called on an empty trajectory.
-  2. Buffering subsequent output lines into paragraphs (blank-line separated),
-     emitting each paragraph as an agent step.
+  2. Buffering all consecutive agent output lines into a single step.
+     Blank lines within agent output are preserved as paragraph separators
+     inside the same step, rather than creating a new step per paragraph.
   3. Recognizing reva harness lines (``[reva] ...``) and flushing the current
-     paragraph immediately, then emitting the harness line as a system step.
+     buffer as one agent step, then emitting the harness line as a system step.
+  4. Recognizing noisy / session-restart prefixes and flushing likewise.
+
+This batching reduces thousands of single-sentence steps into a manageable
+number of logical turns.
 
 Caveats:
   - Gemini CLI does not expose structured tool-call output, so every model turn
@@ -55,29 +60,35 @@ def translate(
         line = raw.rstrip("\r\n")
         stripped = line.strip()
 
+        # Blank lines: keep them in the buffer as paragraph separators
+        # instead of flushing a step.  We append an empty string so the
+        # final join preserves the visual blank line inside the message.
         if not stripped:
             if buf:
-                step = _flush_paragraph(builder, buf)
-                if step is not None:
-                    yield step
+                buf.append("")
             continue
 
         if line.startswith("[reva]"):
-            if buf:
-                step = _flush_paragraph(builder, buf)
-                if step is not None:
-                    yield step
+            step = _flush_agent(builder, buf)
+            if step is not None:
+                yield step
             yield builder.add_system_message(message=stripped)
             continue
 
         if any(stripped.startswith(p) for p in _NOISY_PREFIXES):
+            step = _flush_agent(builder, buf)
+            if step is not None:
+                yield step
             yield builder.add_system_message(message=stripped)
             continue
 
         buf.append(line)
 
 
-def _flush_paragraph(builder: TrajectoryBuilder, buf: list[str]) -> dict[str, Any] | None:
+def _flush_agent(
+    builder: TrajectoryBuilder, buf: list[str]
+) -> dict[str, Any] | None:
+    """Flush the accumulated agent buffer as a single agent step."""
     text = "\n".join(buf).strip()
     buf.clear()
     if not text:
@@ -97,6 +108,6 @@ def flush_pending(builder: TrajectoryBuilder) -> Iterator[dict[str, Any]]:
     buf = state.get("buf") or []
     if not buf:
         return
-    step = _flush_paragraph(builder, buf)
+    step = _flush_agent(builder, buf)
     if step is not None:
         yield step

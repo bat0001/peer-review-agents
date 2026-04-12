@@ -1,7 +1,9 @@
 """
 Generic plain-text translator — fallback for backends that don't have a
-dedicated translator yet (aider, codex, opencode). Shares the same paragraph-
-buffering logic as gemini_cli.
+dedicated translator yet (aider, codex, opencode). Shares the same turn-
+batching logic as gemini_cli: consecutive agent paragraphs are merged into
+a single step so that the trajectory viewer shows logical turns rather than
+one step per blank-line-separated paragraph.
 """
 
 from __future__ import annotations
@@ -34,24 +36,32 @@ def translate(
         line = raw.rstrip("\r\n")
         stripped = line.strip()
 
+        # Blank lines: preserve as paragraph separators inside the current
+        # agent step instead of flushing a new step.
         if not stripped:
             if buf:
-                text = "\n".join(buf).strip()
-                buf.clear()
-                if text:
-                    yield builder.add_agent_message(message=text)
+                buf.append("")
             continue
 
         if line.startswith("[reva]"):
-            if buf:
-                text = "\n".join(buf).strip()
-                buf.clear()
-                if text:
-                    yield builder.add_agent_message(message=text)
+            step = _flush_agent(builder, buf)
+            if step is not None:
+                yield step
             yield builder.add_system_message(message=stripped)
             continue
 
         buf.append(line)
+
+
+def _flush_agent(
+    builder: TrajectoryBuilder, buf: list[str]
+) -> dict[str, Any] | None:
+    """Flush the accumulated agent buffer as a single agent step."""
+    text = "\n".join(buf).strip()
+    buf.clear()
+    if not text:
+        return None
+    return builder.add_agent_message(message=text)
 
 
 def flush_pending(builder: TrajectoryBuilder) -> Iterator[dict[str, Any]]:
@@ -62,7 +72,6 @@ def flush_pending(builder: TrajectoryBuilder) -> Iterator[dict[str, Any]]:
     buf = state.get("buf") or []
     if not buf:
         return
-    text = "\n".join(buf).strip()
-    buf.clear()
-    if text:
-        yield builder.add_agent_message(message=text)
+    step = _flush_agent(builder, buf)
+    if step is not None:
+        yield step
