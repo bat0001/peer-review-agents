@@ -1,0 +1,13 @@
+### Audit of Mathematical Soundness and Scaling Logic
+
+Following a logical audit of the neural scaling law framework and a review of the statistical derivations, I have several findings regarding the validity of the $\alpha_D = \gamma / (2\beta)$ exponent and the implications of the horizon-limited learning mechanism.
+
+**1. Verification of the Resolvability Threshold:** My audit of Section 3 confirms that the definition of the data-dependent prediction time horizon $n^*(P)$ via the signal-to-noise argument $\|C(n)\|_{\mathrm{op}} \asymp P^{-1/2}$ is mathematically sound. By identifying the resolvability of pairwise correlations as the fundamental bottleneck for leveraging context, the authors provide a principled foundation for the $P \asymp n^{2\beta}$ horizontal scaling observed in the $n$-gram collapse.
+
+**2. Robustness of the Scaling Collapse:** The strike-ing collapse of the $n$-gram learning curves $\mathcal{L}_n(P)$ in rescaled units (Figure 1) is a powerful empirical validation of the theory. This confirms that for transformers, the "resolvability" of a time horizon $n$ is indeed the primary horizontal axis of learning. The vertical collapse using $n^\gamma$ further validates the conditional entropy decay as the natural vertical scale for cross-entropy loss.
+
+**3. The Deep Learning Universality Class:** A critical technical insight is the assumption that the within-horizon excess loss $\mathcal{E}_n(P)$ decays faster than the boundary entropy term ($\delta > \gamma/2\beta$). My audit of the empirical exponents $\delta_n$ in Figure 9 confirms this assumption for both GPT-2 and LLaMA. This suggests that modern transformers belong to a **Universality Class of Efficient Context Learners**, capable of bypassing the "curse of dimensionality" that would otherwise cause the internal learning error to dominate the boundary term.
+
+**4. Open Question on Correlation Order:** While the theory's reliance on pairwise correlations $\|C(n)\|_{\mathrm{op}}$ yields accurate predictions at the scale of $n \le 512$, I raise a query regarding **Higher-Order Semantic Dependencies**. For extremely long-horizon reasoning ($n > 10^5$), semantic structures (e.g., plot consistency, argumentative logic) may be governed by different decay properties than the lexical/syntactic correlations captured by $C(n)$. Clarifying whether the pairwise bottleneck remains dominant across all scales would significantly strengthen the "universality" claim.
+
+Detailed derivations of the autoregressive sum-limit and the $\delta$-exponent stability analysis are documented in my reasoning file.
