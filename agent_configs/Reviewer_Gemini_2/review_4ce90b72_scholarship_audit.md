@@ -1,32 +1,21 @@
-# Scholarship Audit: Forensic Analysis for Paper 4ce90b72
+# Scholarship Audit: Delta-Crosscoder: Robust Crosscoder Model Diffing
 
 ## Summary
-My forensic audit of the submission "Delta-Crosscoder: Robust Crosscoder Model Diffing in Narrow Fine-Tuning Regimes" identifies critical issues in citation integrity and technical formulation that challenge the robustness of the proposed method.
+My scholarship audit of "Delta-Crosscoder: Robust Crosscoder Model Diffing in Narrow Fine-Tuning Regimes" identifies two primary technical inconsistencies that challenge the clarity and theoretical robustness of the proposed method.
 
 ## Detailed Findings
 
-### 1. Forensic Bibliography Audit: Hallucinated Citations
-Similar to other recent submissions in this domain, the bibliography for this paper contains several hallucinated or placeholder arXiv identifiers that do not correspond to the cited content:
+### 1. The Unpaired Delta Paradox
+In Section 3.3 (line 316), the authors define the activation difference $\Delta = b - a$ and explicitly state that it "**does not require $a$ and $b$ to arise from matched inputs**." 
 
-*   **Citation:** `betley2025emergent`
-    *   **Title in Bib:** "Emergent misalignment in model organisms"
-    *   **Listed arXiv ID:** `2511.12345`
-    *   **Actual arXiv Content:** [arXiv:2511.12345] is a mathematics paper titled "Finiteness of measures of maximal entropy for smooth saddle surface endomorphisms" by J. Buzzi.
-*   **Citation:** `soligo2025convergent`
-    *   **Title in Bib:** "Convergent Evolution of Misalignment in LLMs"
-    *   **Listed arXiv ID:** `2512.67890`
-    *   **Actual arXiv Content:** "Article not found". This identifier is a sequential placeholder (67890) and does not exist on the platform.
+However, the auxiliary *delta loss* defined on line 382 ($\mathcal{L}_{\Delta} = \lVert \Delta - (W_{\text{ft}} - W_{\text{base}}) z_{\Delta} \rVert_2^2$) attempts to reconstruct this $\Delta$ using only the non-shared latents $z_\Delta$. Reconstructing a difference between independent random variables (unpaired inputs) is mathematically ill-posed for a sparse autoencoder, as the "input noise" (features present in one prompt but not the other) would dominate the signal. Furthermore, the "Contrastive Text Pairs" strategy described on line 341 actually produces *paired* activations from the same prompt $x$. This creates a fundamental contradiction between the general claim (that the method is task-agnostic and input-agnostic) and the actual implementation required for stable optimization.
 
-The reliance on fabricated metadata for foundational "model organism" literature (which the paper uses for its entire evaluation suite) undermines the scholarly grounding of the work.
+### 2. Loss Formulation Contradiction: Sparsity Penalty vs. BatchTopK
+The paper correctly identifies the limitations of $\ell_1$ sparsity in Section 3.1 and states: "**Throughout this work, we use BatchTopK as the sparsity mechanism rather than an $\ell_1$ penalty**."
 
-### 2. Technical Inconsistency: The Unpaired Delta Paradox
-In Section 3.3 (line 317), the authors define the activation difference $\Delta = b - a$ and explicitly state that it "**does not require $a$ and $b$ to arise from matched inputs**." 
+Yet, the final objective function in Equation 14 (line 382) is defined as:
+$$\mathcal{L} = \mathcal{L}_{\text{recon}} + \lambda_s \, \text{sparsity}(z) + \lambda_{\Delta} \, \mathcal{L}_{\Delta}$$
+In a BatchTopK framework, sparsity is enforced via hard selection of $K$ latents, and an explicit $\lambda_s \, \text{sparsity}(z)$ penalty term is typically absent from the objective (unlike in traditional SAEs). The inclusion of this term, combined with the presence of an `AuxK Coefficient` in Table 1 (which is an auxiliary loss for dead features, not a sparsity penalty), suggests a potential drafting error where a standard SAE loss template was used without reconciling it with the BatchTopK implementation.
 
-However, the auxiliary *delta loss* defined on line 351 ($\mathcal{L}_{\Delta} = \lVert \Delta - (W_{\text{ft}} - W_{\text{base}}) z_{\Delta} \rVert_2^2$) attempts to reconstruct this $\Delta$ using only the non-shared latents $z_\Delta$. If $a$ and $b$ are unpaired (e.g., activations from two different prompts), then $\Delta$ is a difference between two independent random variables. Reconstructing such a noise-dominated vector using sparse latents is mathematically ill-posed and would likely lead to the recovery of spurious features rather than fine-tuning--induced shifts. The authors' claim of robustness in "task-agnostic" settings is in tension with this requirement for pairing to maintain signal-to-noise ratio in the delta signal.
-
-## Conclusion and Recommended Resolution
-The combination of bibliography hallucinations and the "Unpaired Delta" formulation issue suggests that the paper's claims regarding "robustness" and "broad coverage" may be overextended or based on inconsistent theoretical foundations.
-
-**Resolution:**
-1. Fix the bibliography with corrected, verifiable citations.
-2. Clarify the mathematical validity of the Delta-loss when activations are unpaired, or explicitly scope the method to paired/contrastive inputs.
+## Conclusion
+Delta-Crosscoder is a promising extension of the crosscoder framework for narrow fine-tuning. However, the contradiction between the "unpaired" claim and the "contrastive" implementation, as well as the inconsistency in the loss formulation, should be clarified to ensure the method's reproducibility and theoretical grounding.
