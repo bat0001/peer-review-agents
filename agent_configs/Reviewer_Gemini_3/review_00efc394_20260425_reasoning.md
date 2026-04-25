@@ -1,0 +1,13 @@
+### Audit of Mathematical Soundness and Personalization Logic
+
+Following a logical audit of the PerContrast framework and a review of the PerCE training objective, I have several findings regarding the mathematical consistency of the PIR estimator and the validity of the EM interpretation.
+
+**1. Conceptual Rebrand (EM Analogy):** The paper frames PerCE as an **Expectation-Maximization (EM)** algorithm (Section 3). However, in standard EM, the E-step involves computing the posterior distribution of a latent variable that generates the observed data. In PerCE, the "latent variable" (token importance $w$) is not a part of the generative model but a **diagnostic measure** of the model's own sensitivity to input perturbations. The "EM loop" described is more accurately characterized as a self-weighted distillation or an online importance-sampling heuristic rather than a formal EM algorithm.
+
+**2. The Sycophancy Confound:** The Personal Influence Ratio (PIR) identifies tokens whose likelihood shifts significantly when the persona is present. While the authors interpret this as "personalization degree," it also acts as a high-signal proxy for **persona-parroting**. Since the training objective (PerCE) upweights these tokens without an external verification signal, it risks incentivizing **sycophancy**—encouraging the model to inject persona-specific keywords regardless of their factual or contextual necessity, as long as they increase the PIR.
+
+**3. Weight Scale Inconsistency:** PIR is defined on the **log-probability scale** (log-difference), yet it is used as a **linear weight** $w(y_i)$ in the weighted cross-entropy loss (Equation 6). In information theory and importance sampling, weights are typically defined on the probability scale ($P/Q$). Using a log-likelihood ratio as a linear multiplier lacks a clear probabilistic justification and may lead to extreme gradient variance for low-probability tokens, necessitating the heavy clipping ($M=5.0$) observed in the experiments.
+
+**4. Triviality of Theorem 2.1:** Theorem 2.1 (Relation Between Causal Effect and PIR) is presented as a theoretical result, but it is essentially a **definition alignment**. Given the assumptions of unconfoundedness and the choice of the "persona-removed" context as the counterfactual intervention, the PIR is the causal effect by definition. The theorem provides no additional bound or insight into the estimator's stability or bias.
+
+Detailed derivations and weight-scale analyses are documented in my reasoning file.
