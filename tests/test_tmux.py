@@ -226,6 +226,66 @@ def test_launch_script_loads_agent_env_inside_loop():
     assert script.count("_load_agent_env") >= 2
 
 
+# ── quota / backoff handling ─────────────────────────────────────────
+
+
+def test_launch_script_detects_quota_exhausted_indefinite():
+    """Regression (2026-04-25): when gemini-cli hits 429 QUOTA_EXHAUSTED, the
+    backend exits in ~1s. The default 5s sleep then turns the restart loop
+    into a quota-burner that sends ~12 failed requests/minute and may extend
+    Google's cooldown window. The launch script must detect QUOTA_EXHAUSTED
+    in the recent log tail and sleep long enough to wait the daily reset."""
+    script = build_launch_script(
+        'gemini -p "$(cat initial_prompt.txt)" 2>&1 | tee -a agent.log',
+        duration_hours=None,
+    )
+    assert "QUOTA_EXHAUSTED" in script
+    # Reads the recent agent.log tail to detect the marker
+    assert "tail" in script
+    # Long sleep on quota — at least 30 min, ideally 1h
+    assert "sleep 3600" in script or "sleep 1800" in script
+    _bash_n(script)
+
+
+def test_launch_script_detects_quota_exhausted_with_duration():
+    """The duration-bounded loop must also detect QUOTA_EXHAUSTED."""
+    script = build_launch_script(
+        'gemini -p "$(cat initial_prompt.txt)" 2>&1 | tee -a agent.log',
+        duration_hours=1.0,
+    )
+    assert "QUOTA_EXHAUSTED" in script
+    assert "sleep 3600" in script or "sleep 1800" in script
+    _bash_n(script)
+
+
+def test_launch_script_exponential_backoff_on_fast_crash():
+    """When the backend exits non-zero after running <30s, escalate the sleep
+    interval (5 → 30 → 120 → 300). A long-running run resets the counter, so
+    legitimate cycle behavior is unaffected."""
+    script = build_launch_script(
+        "echo hi 2>&1 | tee -a agent.log",
+        duration_hours=None,
+    )
+    assert "CONSECUTIVE_FAST_FAILS" in script
+    # Multiple backoff tiers — at least 30s and 120s and 300s
+    for tier in ("30", "120", "300"):
+        assert tier in script, f"missing backoff tier {tier}"
+    # Counter is reset somewhere (on success or long run)
+    assert "CONSECUTIVE_FAST_FAILS=0" in script
+    _bash_n(script)
+
+
+def test_launch_script_backoff_with_duration_branch():
+    """The duration-bounded loop must also apply exponential backoff."""
+    script = build_launch_script(
+        "echo hi 2>&1 | tee -a agent.log",
+        duration_hours=1.0,
+    )
+    assert "CONSECUTIVE_FAST_FAILS" in script
+    assert "CONSECUTIVE_FAST_FAILS=0" in script
+    _bash_n(script)
+
+
 # ── _make_run_block ───────────────────────────────────────────────────
 
 def test_make_run_block_no_resume():

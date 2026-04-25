@@ -81,6 +81,46 @@ _load_agent_env() {
 _LOAD_AGENT_API_KEY_FUNC = _LOAD_AGENT_ENV_FUNC
 
 
+# Loop-tail logic shared by both the duration-bounded and indefinite branches.
+#
+# Three exit-handling cases:
+#   1. QUOTA_EXHAUSTED in recent log tail → sleep 1h. The Gemini OAuth /
+#      free-tier quota resets on a multi-hour cadence; rapid 5s retries on a
+#      429 send hundreds of failed requests that can extend Google's
+#      cooldown (observed 2026-04-25). Reset the fast-fail counter since the
+#      cause is external, not a flaky backend.
+#   2. Fast crash (rc != 0 AND ran < 30s) → exponential backoff
+#      (5 → 30 → 120 → 300s). Protects against a wedged backend that exits
+#      immediately on launch. Caller can recover without manual stop.
+#   3. Anything else (graceful exit, SESSION_TIMEOUT kill, run > 30s) →
+#      default 5s sleep and reset the counter. Keeps normal cycling fast.
+_LOOP_TAIL_LOGIC = """\
+    EXIT_CODE=$?
+    RUN_DURATION=$(( $(date +%s) - RUN_START_TS ))
+    if tail -c 8192 agent.log 2>/dev/null | grep -q "QUOTA_EXHAUSTED"; then
+        echo "[reva] QUOTA_EXHAUSTED detected, sleeping 3600s before retry..."
+        sleep 3600
+        CONSECUTIVE_FAST_FAILS=0
+        continue
+    fi
+    if [ $EXIT_CODE -ne 0 ] && [ $RUN_DURATION -lt 30 ]; then
+        CONSECUTIVE_FAST_FAILS=$((CONSECUTIVE_FAST_FAILS + 1))
+        case $CONSECUTIVE_FAST_FAILS in
+            1) BACKOFF=5 ;;
+            2) BACKOFF=30 ;;
+            3) BACKOFF=120 ;;
+            *) BACKOFF=300 ;;
+        esac
+        echo "[reva] fast crash (rc=$EXIT_CODE, ${RUN_DURATION}s), backoff=${BACKOFF}s (fail #${CONSECUTIVE_FAST_FAILS})"
+        sleep $BACKOFF
+    else
+        CONSECUTIVE_FAST_FAILS=0
+        echo "[reva] agent exited ($EXIT_CODE) after ${RUN_DURATION}s, restarting in 5s..."
+        sleep 5
+    fi
+"""
+
+
 def _run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
         [_tmux_bin()] + args,
@@ -200,6 +240,7 @@ set -o pipefail
 TIMEOUT={timeout_secs}
 SESSION_TIMEOUT={session_timeout}
 START=$(date +%s)
+CONSECUTIVE_FAST_FAILS=0
 
 while true; do
     ELAPSED=$(( $(date +%s) - START ))
@@ -207,12 +248,10 @@ while true; do
     REMAINING=$((TIMEOUT - ELAPSED))
     # cap each invocation at SESSION_TIMEOUT so idle backends get cycled
     PER_RUN=$((REMAINING < SESSION_TIMEOUT ? REMAINING : SESSION_TIMEOUT))
+    RUN_START_TS=$(date +%s)
 
 {run_block}
-    EXIT_CODE=$?
-    echo "[reva] agent exited ($EXIT_CODE), restarting in 5s..."
-    sleep 5
-done
+{_LOOP_TAIL_LOGIC}done
 """
     else:
         run_block = _make_run_block(backend_command, resume_command, "${SESSION_TIMEOUT}", session_id_extractor)
@@ -222,13 +261,12 @@ set -o pipefail
 {_BASH_TIMEOUT_FUNC}
 {_LOAD_AGENT_API_KEY_FUNC}
 SESSION_TIMEOUT={session_timeout}
+CONSECUTIVE_FAST_FAILS=0
 
 while true; do
+    RUN_START_TS=$(date +%s)
 {run_block}
-    EXIT_CODE=$?
-    echo "[reva] agent exited ($EXIT_CODE), restarting in 5s..."
-    sleep 5
-done
+{_LOOP_TAIL_LOGIC}done
 """
 
 
