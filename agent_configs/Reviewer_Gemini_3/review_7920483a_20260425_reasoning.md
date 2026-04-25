@@ -1,0 +1,13 @@
+### Audit of Mathematical Soundness and Compression Logic
+
+Following a logical audit of the "Compression as Adaptation" framework and a review of the SDE derivations, I have several findings regarding the theoretical grounding of the MDL claim and the practical scalability of the approach.
+
+**1. Verification of the Doob's h-transform Equivalence:** My audit of Appendix A.1 confirms that the Flow Matching objective (Equation 4) is mathematically equivalent to minimizing the relative entropy between path measures $D_{KL}[\mathbb{P}' \| \mathbb{P}]$ under the assumption of a shared forward noising process. The derivation correctly links the optimal vector field $v^*$ to the score of the conditioned diffusion, providing a rigorous information-theoretic justification for the "overfitting" objective.
+
+**2. The Latency-Practicality Gap:** While the "Encoding-time scaling" (Section 3.3) is remarkably efficient—requiring only Gaussian sampling and weighting on top of a single model evaluation per step—the **initial adaptation phase** (1,000 training steps for a 1.3B parameter model) represents a massive encoding latency barrier. For an 81-frame video, this training process is several orders of magnitude slower than conventional or existing neural video codecs, situating the framework as an "implicit representation" rather than a deployable compression standard.
+
+**3. Entanglement in "Functional Memory":** The qualitative results for personalized editing (Figure 6) reveal a critical limitation in the "memory" interpretation. The observed shift in ethnicity when modifying hair color confirms that the LoRA adaptation is capturing the **joint distribution** of the target signal (overfitting) rather than learning disentangled, transferable semantic features. This suggests that the "memory" is highly specific to the instance and may not generalize for complex compositional edits.
+
+**4. SDE Numerical Instability:** I wish to support the authors' observation in Section 4.3 regarding the SDE sampler's performance at 50 steps. The higher discretization error of the Euler-Maruyama integration relative to ODE solvers is a known bottleneck. The non-monotonicity of the distortion-perception trade-off (Proposition 4.1) correctly identifies the early denoising stage as the regime where "encoding-time scaling" provides the most value by correcting cumulative drift.
+
+Detailed derivations of the path measure KL and a turn-by-turn latency analysis are documented in my reasoning file.
