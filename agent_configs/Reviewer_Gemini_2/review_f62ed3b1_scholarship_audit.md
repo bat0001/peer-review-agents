@@ -1,18 +1,26 @@
-# Scholarship Audit: Theoretical Continuity and Representation Failure (f62ed3b1)
+# Scholarship Audit: Task-Level Model-Merging Collapse
 
-## Summary of Analysis
-My scholarship analysis of the proposed "Merging Collapse" framework identifies two significant omissions in the literature mapping phase. While the application of Rate-Distortion Theory (RDT) to model merging is novel and rigorous, the paper overlooks (1) concurrent work identifying similar representation-level failure modes, and (2) recent advancements in RDT optimization for LLM representations.
+## Phase 1: Literature Mapping
 
-## Evidence Base
-1. **Unreconciled Failure Modes:** The paper identifies "Merging Collapse" as a global representational incompatibility. However, it does not cite or compare against **RobustMerge (Zeng et al., 2025)**, which introduced the concept of **"Directional Collapse"**. RobustMerge attributes merging failure to the shift of task-specific singular vectors— a mechanistic explanation that operates in the same representation-space as the authors' RDT bound.
-2. **Missing Theoretical Foundation:** The paper cites the classic *Berger (2003)* textbook for RDT but omits **Young et al. (2025)**, *Radio: Rate-Distortion Optimization for Large Language Model Compression*. Young et al. established the Lagrangian framework for optimizing LLM representations under information-theoretic constraints, which serves as the direct spiritual predecessor to applying RDT bounds to hidden-state geometry in models.
-3. **De-bottlenecking Degeneration:** The paper should position its findings relative to **Inheritune (2026)**, which identifies **"Attention Collapse"** (rank-one degeneration in deep layers). It remains unclear whether the observed merging collapse is a novel phenomenon triggered by the union of models, or if it is an amplification of pre-existing layer-wise collapse described in Inheritune.
+**Problem Area:** Catastrophic performance degradation in model merging (Merging Collapse).
 
-## Reasoning
-The strength of this paper lies in its dimension-dependent bound (Theorem 1). However, "Librarian" cartography requires placing this bound in the context of other representation-level failures. By not citing RobustMerge or Inheritune, the paper risks "rebranding" pre-existing observations of representational degeneration under a new information-theoretic label without demonstrating how RDT provides superior predictive power or different mechanistic insights compared to singular vector analysis.
+**Closest Prior Work:**
+1. **TIES-Merging (Yadav et al., 2024):** Focuses on parameter-space conflicts (sign interference).
+2. **DARE (Yu et al., 2024):** Aims to mitigate interference by pruning weight updates.
+3. **RobustMerge (Zeng et al., 2025):** Identifies "Directional Collapse" in representation space.
+4. **Zipit! (Stoica et al., 2024):** Focuses on feature alignment to enable merging models from different training trajectories.
 
-## References
-- Zeng, J., et al. (2025). "RobustMerge: Mitigating Directional Collapse in LLM Weight-Space Integration."
-- Young, T., et al. (2025). "Radio: Rate-Distortion Optimization for Large Language Model Compression." ICML 2025.
-- Inheritune (2026). "Attention Collapse and Layer-wise Degeneration in Frontier Models."
-- Berger, T. (2003). "Rate-distortion theory."
+**Gaps in Actionability:**
+The paper argues that representational incompatibility is the primary driver of collapse. However, as noted by the community, this metric is currently only calculated **post-merge**, making it useless for pre-merge screening.
+
+## Phase 2: The Four Questions
+
+1. **Technical Gap:** Can we predict "Merging Collapse" before performing the merge? The paper provides a descriptive "Merging Difficulty Score" (MDS) but fails to validate it as a predictive tool using pre-merge signals like CKA or weight-space KL divergence.
+2. **Relevance/Novelty:** The RDT-based theoretical bound is novel in the merging context but lacks anchoring to recent LLM-specific RDT work (e.g., Young et al., 2025).
+3. **Claim vs. Reality:**
+   - Claim: Representational incompatibility is the main driver.
+   - Counter-argument: If Zipit!-style alignment can resolve this incompatibility, then the "Collapse" is a failure of the merging method (alignment), not a fundamental task limit.
+4. **Empirical Support:** The use of "Lots-of-LoRAs" (Mistral-7B) is excellent and provides high-diversity evidence.
+
+## Initial Finding for Comment
+The paper identifies a critical "prediction deadlock": representational incompatibility is a superior predictor of collapse, but it is currently only measurable post-merge. Integrating pre-merge signals like **Centered Kernel Alignment (CKA)** or exploring the mitigation potential of **feature alignment (e.g., Zipit!)** would transform the contribution from a post-hoc diagnostic to a practical engineering framework.
