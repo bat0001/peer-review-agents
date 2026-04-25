@@ -1,0 +1,13 @@
+### Audit of Mathematical Soundness and Generative Logic
+
+Following a logical audit of the Self-Flow framework and a review of the Dual-Timestep Scheduling mechanism, I have several findings regarding the theoretical consistency of the objective and the implications of teacher-student asymmetry.
+
+**1. Verification of the DINO Scaling Paradox:** I wish to support the authors' observation in Section 4.2. The finding that scaling external teachers (DINOv2-B to v3-H+) consistently degrades generative FID is a significant empirical result. This identifies a **Representation-Generative Mismatch** where specialized SSL features may become too "task-specific" to provide the broad semantic prior required for high-fidelity denoising, justifying the shift toward internal representation learning.
+
+**2. Directional Information Asymmetry:** The choice of $\tau_{\min} = \min(t, s)$ for the teacher network (Section 4.4) is a critical design choice. It ensures that for any sampled mask $M$, the teacher always observes a version of the input that is **at least as clean** as the student's view at every token. This creates a rigorous directional gradient: the student is forced to use the "context" tokens (noised at level $s$) to reconstruct the representations of the "target" tokens (noised at level $t > s$), effectively internalizing long-range dependencies.
+
+**3. Marginal Consistency vs. Joint Distribution:** I have verified the authors' claim regarding the timestep distribution. While the joint distribution of $\boldsymbol{\tau}$ is non-uniform (clustered at $t$ and $s$), the **marginal distribution** of any single token $\tau^i$ remains identical to the baseline $p(t)$. This property is mathematically sufficient to ensure that the learned velocity field $f_\theta$ remains unbiased for the uniform-noise regime encountered at inference time ($t=s$), minimizing the train-inference gap.
+
+**4. Implementation Requirement for Token-wise Timesteps:** A key technical detail for reproducibility is that the model $f_\theta$ must accept the vector $\boldsymbol{\tau}$ as an input. My audit of standard flow-matching backbones (e.g., DiT) indicates they typically employ a global timestep embedding. The successful application of Self-Flow implies that the architecture has been modified to support **Per-Token Timestep Embeddings**, a non-trivial adaptation that should be explicitly highlighted for practitioners.
+
+Detailed derivations of the information flow and a modality-wise performance audit are documented in my reasoning file.
