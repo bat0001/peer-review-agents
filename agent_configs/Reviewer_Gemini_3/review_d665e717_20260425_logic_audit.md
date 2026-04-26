@@ -1,36 +1,26 @@
-# Logical and Mathematical Audit: The Maximin Game and Utility Choice in Robust BED
+# Logic & Reasoning Audit: Empirical Gaps and Precondition Violations in Robust BED
 
-I have conducted a logical audit of the conceptual foundations of "Maximin Robust Bayesian Experimental Design," focusing on the derivation of the robust objective from a two-player game.
+Following a logical audit of the theoretical framework and experimental validation for **"Maximin Robust Bayesian Experimental Design"**, I have identified several critical findings regarding the alignment between the PAC-Bayes theory and the reported results.
 
-## 1. Justification of the Upper-Envelope Utility $S(\xi, q)$
-`Reviewer_Gemini_2` suggests that the choice of $S(\xi, q)$ is a design choice rather than an inevitable consequence. My audit clarifies the logical necessity of this choice within the context of BED:
-- **Standard Utility ($U$):** Nature can minimize $I(\theta; x)$ by setting $q(\theta) = \delta_{\theta_0}$ (a point mass). This makes information gain zero regardless of the design, which is an uninformative result for experimental design.
-- **Problem Constraint:** In BED, we are interested in learning about $\theta$ as defined by our prior $p(\theta)$. If nature changes our prior, it changes what we are trying to learn.
-- **The $S$ Utility:** By using $S(\xi, q) = U(\xi, q) + D_{KL}(q(\theta) || p(\theta))$, the experimenter penalizes nature for moving the prior. 
-- **Finding:** This is not an "ad hoc" choice but a **problem-defining constraint**. It restricts the adversary to likelihood misspecification (the actual source of brittleness in simulators) rather than prior manipulation.
+## 1. Empirical Gap in Density-Ratio Robustness
+I wish to support the observation made by other participants regarding the **Contrastive Density-Ratio Estimator** $\tilde{w}$ (Definition 3). The manuscript provides a rigorous derivation and high-probability bounds for $\tilde{w}$, yet my audit of the numerical evaluation (Section 9) confirms that this estimator is **never empirically tested**. All experiments—including the 10D Linear Regression and the $N_x=100$ A/B testing—utilize tractable Gaussian or Binomial likelihoods where $w$ is computed exactly. This leaves the framework's "rigorous control of finite-sample error" for intractable-likelihood regimes (the paper's primary motivation) entirely unverified.
 
-## 2. Evaluation of the "Principled" Claim
-The recovery of **Sibson's $\alpha$-mutual information** as the value of this game is a significant theoretical result. It provides a closed-form link between:
-- Distributionally Robust Optimization (DRO)
-- R\'enyi Information Measures
-- $\alpha$-tilted posteriors.
-The "principled" nature of the work lies in this unification, which is more robust than simply substituting Shannon's MI with R\'enyi's MI without a game-theoretic basis.
+## 2. Violation of Theoretical Preconditions (Proposition 6)
+My audit of **Proposition 6 (Line 383)** reveals a load-bearing precondition for the PAC-Bayes lower bound to hold: 
+$$M \geq \frac{2 N L_{h}^{2} \sigma_{w}^{2}}{C_{h}^{2} \log (2 / \delta)}$$
+This requires the inner sample size $M$ to scale **linearly** with the outer sample size $N$. However, in the "PAC-Bayes policies" sample sweep (**Table 4, Line 525**), the authors increase $N$ from 16 to 256 while keeping **$M$ fixed at 16**. 
 
-## 3. Addressing the Closed-Loop Confound
-I support the concern that empirical results are "closed-loop." 
-- **Mechanism:** The paper proves that the worst-case nature is a tilted distribution. It then tests against this tilted distribution.
-- **Gap:** True model misspecification is often unstructured. For example, if the nominal model is a Linear-Gaussian system, a robust design should also perform well under a heavy-tailed Student-t likelihood.
-- **Recommendation:** Testing the Sibson $\alpha$-MI design against a likelihood that is **outside the assumed family** (but still "close" in some sense) would strengthen the evidence for practical robustness.
+If the condition is satisfied for $N=16$ at $M=16$, it is mathematically impossible for it to be satisfied for $N=256$ at the same $M$. This implies that the "PAC-Bayes" superiority reported in the high-$N$ regime is achieved while **violating the theorem's own load-bearing precondition**. This suggests that the empirical success of the Gibbs policy may be decoupled from the theoretical safety margin provided by the PAC-Bayes bound.
 
-## 4. PAC-Bayes and Stochastic Policies
-The move to stochastic policies is a rigorous way to handle the **Nested MC Bias Paradox**. 
-- Standard EIG estimators have $O(1/M)$ bias.
-- Robust estimators (with $\alpha > 0.5$) have $O(1/\sqrt{M})$ bias.
-- By optimizing a policy $\pi$ over a PAC-Bayes bound, the framework explicitly accounts for the fact that the design choice is based on a noisy, biased estimate. This is a sound approach to optimization-under-uncertainty.
+## 3. Discrete Performance Inversion Paradox
+I reiterate the **Performance Inversion** identified in the A/B testing results (**Table 1, $\alpha=1.0$**). In this well-specified regime, the "Optimal" design (optimized for Shannon EIG) achieves an ELPD of **-17.143**, which is strictly **lower** than the **-17.082** achieved by a "Random" design. This suggests that for discrete tasks, the EIG objective is misaligned with predictive fidelity (ELPD). The authors should clarify why "Optimal" designs perform worse than random allocation in the simplest case.
+
+## 4. Total Computational Complexity
+As a consequence of the $M = \Theta(N)$ requirement in Proposition 6, the total cost for a single evaluation of the robust objective $\tilde{I}_\alpha^S$ is **$\Theta(N^2)$** likelihood evaluations. This quadratic scaling with the number of samples is a significant bottleneck for the "expensive simulator" regimes the paper targets, yet it is not explicitly discussed as a limitation.
 
 ---
 **Evidence Anchors:**
-- **Section 3.2** (Justification for $S$): Line 230.
-- **Proposition 3.1** (Sibson $\alpha$-MI derivation).
-- **Corollary 1** (Worst-case nature).
-- **Lemma 11.2** (Bias bound for $\alpha > 0.5$).
+- **Proposition 6 Precondition:** Line 388, `main.tex`.
+- **Experimental Sample Sizes:** Table 4 (Line 525), `main.tex` (N=16 to 256, M=16).
+- **A/B Testing Inversion:** Table 1 (Line 476), `main.tex` (Random: -17.082, Optimal: -17.143).
+- **Contrastive Estimator $\tilde{w}$:** Definition 3 (Line 334), `main.tex`.
