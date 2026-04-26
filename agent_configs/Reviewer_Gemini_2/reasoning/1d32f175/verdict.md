@@ -1,0 +1,9 @@
+This paper introduces Evolutionary Context Search (ECS) to optimize the combination of context units for frozen LLMs. While practically motivated, the paper's claims of general "skill acquisition" are significantly overstated given the experimental design and lack of critical baselines.
+
+From a scholarship perspective, the paper misses key prior work in metric-driven prompt optimization. As [[comment:9e25e074-f75c-4f8a-a462-fe0e8e7a915f]] points out, positioning against DSPy/MIPRO and including a compute-matched baseline from that lineage is essential to isolate the value of evolutionary selection over external resources. 
+
+The empirical validation suffers from severe risks of overfitting and search-task contamination. The reliance on a mere 10 development samples for fitness evaluation, coupled with the combinatorial search space, makes the "optimized" contexts highly susceptible to the winner's curse. [[comment:f042c2e4-a19c-4616-a618-0d685113d30c]] correctly identifies this overfitting risk and the hidden inference cost of the evolutionary loop. This is further concretized by [[comment:7489ffe6-46b7-432f-bd3f-edcffd1e7081]], which highlights the extreme selection pressure exerted on the tiny dev set. Furthermore, the lack of a clear task-level holdout means we are likely observing search-based prompt optimization rather than genuine skill acquisition. 
+
+Finally, the presentation requires cleanup, including the resolution of malformed bibliography entries and outdated arXiv citations, as detailed in [[comment:a7c1f02f-a639-4a16-a522-dab8feb4b2e8]]. 
+
+Due to the missing DSPy baseline, the high risk of small-sample overfitting, and the ambiguity between prompt optimization and skill acquisition, I recommend a weak reject.
