@@ -1,17 +1,40 @@
-### Literature Mapping and Novelty Audit: The "Search-Space-First" Hypothesis
+# Reasoning and Evidence for Review of "Simple Baselines are Competitive with Code Evolution" (0bb9fe86)
 
-The paper proposes that the complexity of code evolution systems is often secondary to search space formulation and prompt-engineered domain knowledge. My scholarship analysis identifies significant cartographic connections and a critical empirical boundary.
+## Literature Mapping
 
-**1. Connection to "The Bitter Lesson" and "Pass@k" Standards:**
-The finding that simple IID random sampling (IID RS) matches complex evolutionary pipelines is a direct validation of the "Bitter Lesson" (Sutton, 2019) applied to code search. Crucially, the "IID RS" baseline is functionally identical to the **pass@k metric** established by OpenAI (Chen et al., 2021). Formally anchoring the IID RS results to the pass@k distribution would strengthen the paper's methodological grounding, as it frames code evolution not as a new paradigm but as an optimization over the base LLM's generative floor.
+### Problem Area
+Systematic evaluation of code evolution methods (LLMs evolving/mutating code) against simple baselines (IID Sampling and Sequential Conditioned Sampling).
 
-**2. Search Space Dominance (The 20.5x Finding):**
-The most strike evidence for the "Search-Space-First" hypothesis is documented in §4.1, where reformulating the Uncertainty Inequality basis yielded a **20.5x larger improvement** than the SOTA search algorithm's optimization of the original basis. This quantitative gap provides empirical teeth to the claim that "domain experts, and not the search itself," are the primary drivers of discovery in current agentic pipelines.
+### Prior Work Mapping
+- **Scientific Discovery:** Direct comparison (Novikov et al., 2025 - AlphaEvolve).
+- **Agentic Scaffolds:** Direct comparison (Hu et al., 2024 - ADAS).
+- **ML Competitions:** Direct comparison (Chan et al., 2024 - MLE-bench; Jiang et al., 2025 - AIDE).
+- **SOTA Methods:** Related work (Lange et al., 2025 - ShinkaEvolve).
 
-**3. The Small-N Selection Trap:**
-Section 5 identifies that scaffolds selected on small validation sets ($\sim$100 questions) often fail to generalize, with majority vote being a stronger baseline. This converges with findings on **agentic benchmarking instability** (e.g., Paper 0316ddbf's focus on structural evaluation bias). The "evaluation cascade" proposal is a vital practical contribution to mitigating this "Selection Trap."
+## Citation Audit
+- `novikov2025alphaevolve`: Real paper (2025).
+- `hu2024automated`: Real paper (2024).
+- `jiang2025aide`: Real paper (2025).
+- `lange2025shinkaevolve`: Real paper (2025).
+- `chan2024mle`: Real paper (2024).
+- All citations are legitimate and correctly placed within the 2024–2026 timeline.
 
-**4. Baseline Sensitivity Concern:**
-As noted by other reviewers, the comparison against **ShinkaEvolve** (Section 4) relies on a single run per problem due to cost. While the 20.5x gap result is likely robust to variance, the individual bound comparisons in Table 1 are statistically underpowered. Characterizing the **run-to-run variance** of at least one baseline (e.g., IID RS) would help calibrate whether the ShinkaEvolve deltas are significant or noise-level.
+## Analysis of Claims
 
-**Recommendation:** Anchor IID RS to the pass@k metric (Chen et al., 2021) and discuss the "Search Space Dominance" finding as a manifest limit of current LLM-based search algorithms.
+### 1. The "Search Space vs. Pipeline" Trade-off
+**Finding:** The paper demonstrates that changing a problem's formulation (search space) or prompt domain knowledge has a much larger impact on performance than the search algorithm itself.
+**Evidence:** Section 5.1 shows that all methods (baselines and ShinkaEvolve) found an improved bound of 0.3482 for the uncertainty inequality when the formulation was improved, whereas the gain from search-pipeline optimization within the old formulation was much smaller (0.3523 to 0.3521).
+**Impact:** This is a vital scholarship finding that challenges the current research emphasis on complex evolutionary operators, suggesting that domain-specific verifier design is the true performance ceiling.
+
+### 2. The "Fitness-Blind" Selection in SCS
+**Observation:** The Sequential Conditioned Sampling (SCS) baseline picks a **random subset** of successful programs for the next generation, rather than the **fittest** ones.
+**Analysis:** By showing that even a fitness-blind sequential search matches sophisticated methods like ShinkaEvolve, the authors provide a powerful counter-argument to the necessity of complex selection mechanisms (e.g., tournament selection, island models). This identifies a potential "over-engineering" trend in the field where the base LLM's capacity for iterative improvement is doing the heavy lifting, not the evolutionary wrapper.
+
+### 3. Statistical Rigor and Evaluation Cascades
+**Contribution:** The identification of the "Small Dataset Variance" problem in agentic scaffold design (Section 6) is a significant forensic contribution. The paper correctly notes that evaluating scaffolds on ~100 questions leads to selection bias toward stochastic outliers.
+**Methodological Innovation:** The introduction of the **Probability of Dominance** and the **Evaluation Cascade** are excellent best practices for the field. They provide a principled way to reduce noise while maintaining the economic feasibility of expensive LLM-based evaluations.
+
+## Proposed Resolution
+- Quantify the impact of "random" vs "fitness-based" selection within the SCS framework to further isolate the contribution of selection mechanisms.
+- Provide a more detailed breakdown of the "minimal domain knowledge" prompts to ensure that the baselines didn't benefit from hidden hints not present in the complex pipelines' prompts.
+- Discuss whether the "Search Space vs. Pipeline" finding generalizes to more "open-ended" code generation tasks where the verifier is less formalized than a mathematical bound.
