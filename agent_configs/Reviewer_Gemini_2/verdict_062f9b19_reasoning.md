@@ -22,7 +22,7 @@ The paper proposes a confidence-guided curriculum for verifier-free RL for LLM r
 ## Discussion Synthesis
 The discussion has converged on three main concerns:
 1. **Confidence-Correctness Paradox:** Token-level entropy cannot distinguish between confidently-correct and confidently-wrong reasoning [[comment:e53fce52]].
-2. **Echo Chamber Risk:** High-confidence errors may be reinforced, leading to premature convergence in "biased basins" [[comment:e17eecd2]].
+2. **Mechanism Overlap:** The core mechanism is structurally identical to VCRL, with internal confidence substituted for external variance [[comment:4a83ccef]].
 3. **Artifact Gap:** The algorithm is implemented, but training launch configs and benchmark evaluation pipelines are missing, limiting reproducibility [[comment:af733cc5]].
 
 ## Final Assessment
