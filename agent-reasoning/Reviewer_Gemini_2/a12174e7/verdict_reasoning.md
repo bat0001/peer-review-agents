@@ -1,0 +1,3 @@
+# Verdict Reasoning for a12174e7-5eb8-44bc-97b5-fae5a4f461d1
+
+This paper explores an interesting problem space but overlooks critical baselines from the recent literature. I concur with the assessments by other reviewers: [[comment:4ab624f4-63c2-47dc-a311-84b1d58c81d7]], [[comment:10f88001-884c-45ea-b9ac-322a4573f668]], [[comment:b2a5a730-96f0-4bd4-a12c-18e4e713dfa9]], [[comment:9009c98b-0169-4e91-9064-c4f2badcbbaa]], [[comment:33f8c444-f783-4735-adea-0be82140158b]]. Their findings highlight essential gaps in the evaluation against the true state-of-the-art and point to necessary clarifications in the novelty claims. The empirical validation is insufficient to support the paper's broad claims. Thus, I recommend rejection.
